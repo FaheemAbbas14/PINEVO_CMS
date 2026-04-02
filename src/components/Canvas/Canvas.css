@@ -1,0 +1,53 @@
+.canvas-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-label {
+  display: none; /* Label is redundant inside the skin */
+}
+
+.canvas {
+  position: relative;
+  background: #ffffff;
+  width: 100% !important;
+  height: 100% !important;
+  flex-shrink: 0;
+  transition: box-shadow 0.15s;
+}
+
+.canvas.drag-over {
+  box-shadow: 0 4px 24px rgba(79, 70, 229, 0.18), 0 0 0 2px #4f46e5;
+}
+
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.canvas-empty p {
+  font-size: 13px;
+  color: #ccc;
+  margin: 0;
+  font-weight: 500;
+}

@@ -1,0 +1,543 @@
+.ble-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeInOverlay 0.2s ease-out;
+    backdrop-filter: blur(4px);
+}
+
+@keyframes fadeInOverlay {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.ble-modal {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUpModal 0.3s ease-out;
+}
+
+@keyframes slideUpModal {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.ble-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.ble-modal-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0;
+}
+
+.ble-modal-header h2 svg {
+    color: #3b82f6;
+}
+
+.ble-modal-close {
+    background: none;
+    border: none;
+    padding: 8px;
+    cursor: pointer;
+    border-radius: 8px;
+    color: #6b7280;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ble-modal-close:hover {
+    background: #f3f4f6;
+    color: #1f2937;
+}
+
+.ble-modal-body {
+    padding: 24px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.ble-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.ble-warning svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.ble-warning span {
+    font-size: 14px;
+    color: #92400e;
+    line-height: 1.5;
+}
+
+.ble-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: #fee2e2;
+    border: 1px solid #ef4444;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.ble-error svg {
+    color: #ef4444;
+    flex-shrink: 0;
+}
+
+.ble-error span {
+    font-size: 14px;
+    color: #b91c1c;
+    line-height: 1.5;
+}
+
+.ble-connected {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 32px 20px;
+}
+
+.ble-connected-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #059669;
+}
+
+.ble-connected-status svg {
+    color: #10b981;
+}
+
+.ble-connected-actions {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-top: 16px;
+}
+
+/* Deployment Options */
+.ble-deployment-options {
+    display: flex;
+    gap: 16px;
+    padding: 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.ble-option-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ble-option-group label {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.ble-option-group select {
+    padding: 4px 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 12px;
+    background: white;
+}
+
+.ble-option-group input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+}
+
+/* Deployment Progress */
+.ble-deployment-progress {
+    padding: 12px;
+    background: #f0f9ff;
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+
+.ble-progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.ble-progress-phase {
+    font-size: 12px;
+    color: #0369a1;
+    text-transform: capitalize;
+}
+
+.ble-progress-percent {
+    font-size: 12px;
+    font-weight: 600;
+    color: #0369a1;
+}
+
+.ble-progress-bar {
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.ble-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #6366f1);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.ble-progress-chunks {
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+}
+
+/* Deployment Logs */
+.ble-deployment-logs {
+    padding: 12px;
+    background: #1e293b;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.ble-logs-header {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.ble-logs-content {
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 10px;
+}
+
+.ble-log-entry {
+    display: flex;
+    gap: 8px;
+    padding: 2px 0;
+    color: #e2e8f0;
+}
+
+.ble-log-entry.log-info {
+    color: #60a5fa;
+}
+
+.ble-log-entry.log-warn {
+    color: #fbbf24;
+}
+
+.ble-log-entry.log-error {
+    color: #f87171;
+}
+
+.ble-log-entry.log-debug {
+    color: #94a3b8;
+}
+
+.ble-log-time {
+    color: #64748b;
+}
+
+.ble-deploy-btn {
+    flex: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #3b82f6;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ble-deploy-btn:hover:not(:disabled) {
+    background: #2563eb;
+}
+
+.ble-deploy-btn:disabled {
+    cursor: not-allowed;
+}
+
+.ble-deploy-btn.deploying {
+    background: #6366f1;
+}
+
+.ble-deploy-btn.success {
+    background: #10b981;
+}
+
+.ble-disconnect-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    color: #dc2626;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ble-disconnect-btn:hover:not(:disabled) {
+    background: #fecaca;
+}
+
+.ble-disconnect-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ble-devices-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.ble-devices-count {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.ble-scan-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #3b82f6;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ble-scan-btn:hover:not(:disabled) {
+    background: #2563eb;
+}
+
+.ble-scan-btn:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+}
+
+.ble-scan-btn.scanning {
+    background: #6366f1;
+}
+
+.ble-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.ble-devices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.ble-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.ble-empty-state svg {
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.ble-empty-state p {
+    font-size: 16px;
+    font-weight: 500;
+    color: #4b5563;
+    margin: 0 0 8px;
+}
+
+.ble-empty-state span {
+    font-size: 14px;
+    color: #9ca3af;
+}
+
+.ble-device-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    width: 100%;
+}
+
+.ble-device-item:hover {
+    background: #eff6ff;
+    border-color: #3b82f6;
+}
+
+.ble-device-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: #e0e7ff;
+    border-radius: 8px;
+    color: #4f46e5;
+}
+
+.ble-device-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ble-device-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1f2937;
+}
+
+.ble-device-id {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.ble-connect-icon {
+    color: #9ca3af;
+    transition: all 0.2s ease;
+}
+
+.ble-device-item:hover .ble-connect-icon {
+    color: #3b82f6;
+    transform: translateX(4px);
+}
+
+.ble-modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.ble-cancel-btn {
+    padding: 10px 20px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    color: #4b5563;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.ble-cancel-btn:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .ble-modal {
+        width: 95%;
+        max-height: 85vh;
+    }
+
+    .ble-modal-header,
+    .ble-modal-body,
+    .ble-modal-footer {
+        padding: 16px;
+    }
+
+    .ble-modal-header h2 {
+        font-size: 16px;
+    }
+}
