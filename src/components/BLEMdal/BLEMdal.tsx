@@ -224,10 +224,10 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
 
             const chunkSize = FIXED_PAYLOAD_SIZE; // Always use 244 bytes
 
-            // Build payload to produce exactly 3 chunks: 2 full chunks + 1 partial
-            // Total length = chunkSize * 2 + remainder (where 1 <= remainder <= chunkSize)
-            const chunk3Size = Math.min(chunkSize, 10); // 3rd chunk size (between 1 and chunkSize)
-            const totalLength = chunkSize * 2 + chunk3Size;
+            // Build payload to produce exactly 3 chunks: 2 full @ 244 bytes + 1 partial
+            // With 247 MTU: chunk_size = 244 bytes, so 3 chunks = 488 + remainder
+            const chunk3Size = 25; // 3rd chunk: 25 bytes (can be 1-244)
+            const totalLength = chunkSize * 2 + chunk3Size; // 244 * 2 + 25 = 513 bytes
 
             const header = `PINEVO_3CHUNKS|mtu=247|chunk=${chunkSize}|total=${totalLength}|`;
             const fillerLength = Math.max(0, totalLength - header.length);
@@ -236,7 +236,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             const encoded = new TextEncoder().encode(payload);
             const chunks = splitIntoChunks(encoded, chunkSize);
 
-            console.log(`[BLE] Building 3-chunk test (payload_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
+            console.log(`[BLE] Building 3-chunk test for MTU=247 (payload_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
             for (let i = 0; i < chunks.length; i += 1) {
                 console.log(`[BLE]   Chunk ${i + 1}: ${chunks[i].length} bytes`);
             }
