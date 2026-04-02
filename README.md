@@ -41,6 +41,7 @@ Use the Export button in the top bar to choose the output format.
 - Hardware-button configuration per screen
 - BLE deployment workflow scaffolding
 - BLE modal can connect to custom config service UUID `abcdef01-1234-5678-9abc-def012345678` and send a dummy test payload to RX characteristic UUID `abcdef02-1234-5678-9abc-def012345678` when Deploy to Device is clicked
+- After successful BLE connection, the modal attempts MTU negotiation (when supported) and uses the agreed MTU payload size for chunked deploy writes
 
 ## Stack
 

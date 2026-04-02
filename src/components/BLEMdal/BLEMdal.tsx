@@ -6,7 +6,12 @@ const BLE_UUIDS = {
     RX_CHARACTERISTIC: 'abcdef02-1234-5678-9abc-def012345678',
 };
 
-const TEST_CHUNK_SIZE = 20;
+const DEFAULT_MTU = 23;
+const DESIRED_MTU = 247;
+
+function toPayloadSize(mtu: number): number {
+    return Math.max(1, mtu - 3);
+}
 
 function splitIntoChunks(data: Uint8Array, chunkSize: number): Uint8Array[] {
     const chunks: Uint8Array[] = [];
@@ -14,6 +19,44 @@ function splitIntoChunks(data: Uint8Array, chunkSize: number): Uint8Array[] {
         chunks.push(data.slice(index, index + chunkSize));
     }
     return chunks;
+}
+
+async function tryRequestMtu(gatt: any, server: any, desiredMtu: number): Promise<number | null> {
+    try {
+        if (typeof gatt?.requestMtu === 'function') {
+            const mtu = await gatt.requestMtu(desiredMtu);
+            if (typeof mtu === 'number' && mtu > 0) {
+                return mtu;
+            }
+        }
+    } catch {
+        // Browser may not expose MTU request.
+    }
+
+    try {
+        if (typeof server?.requestMtu === 'function') {
+            const mtu = await server.requestMtu(desiredMtu);
+            if (typeof mtu === 'number' && mtu > 0) {
+                return mtu;
+            }
+        }
+    } catch {
+        // Browser may not expose MTU request.
+    }
+
+    return null;
+}
+
+function resolveMtu(server: any, requestedMtu: number | null): number {
+    const candidates = [requestedMtu, server?.mtu, server?.device?.mtu, server?.device?.platformMTU, DEFAULT_MTU];
+
+    for (const candidate of candidates) {
+        if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= DEFAULT_MTU) {
+            return candidate;
+        }
+    }
+
+    return DEFAULT_MTU;
 }
 
 async function writeTestPayload(
@@ -63,6 +106,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
     const [bluetoothSupported, setBluetoothSupported] = useState(true);
     const [isDeploying, setIsDeploying] = useState(false);
     const [deploySuccess, setDeploySuccess] = useState(false);
+    const [agreedMtu, setAgreedMtu] = useState(DEFAULT_MTU);
 
     // Reset state when modal closes
     useEffect(() => {
@@ -75,6 +119,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             setIsConnecting(false);
             setIsDeploying(false);
             setDeploySuccess(false);
+            setAgreedMtu(DEFAULT_MTU);
         }
     }, [isOpen]);
 
@@ -164,6 +209,11 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             const server = await gatt.connect();
             console.log('[BLE] Connected:', server.device.name);
 
+            const requestedMtu = await tryRequestMtu(gatt, server, DESIRED_MTU);
+            const negotiatedMtu = resolveMtu(server, requestedMtu);
+            setAgreedMtu(negotiatedMtu);
+            console.log(`[BLE] MTU requested=${DESIRED_MTU}, agreed=${negotiatedMtu}, payload=${toPayloadSize(negotiatedMtu)}`);
+
             setConnectedDevice(device);
             setWriteCharacteristic(null);
             onConnect(device);
@@ -186,6 +236,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
         }
         setConnectedDevice(null);
         setWriteCharacteristic(null);
+        setAgreedMtu(DEFAULT_MTU);
     }, [connectedDevice]);
 
     const handleDeploy = useCallback(async () => {
@@ -213,21 +264,21 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                 throw new Error('No writable BLE characteristic available');
             }
 
-            const chunkSize = TEST_CHUNK_SIZE;
+            const chunkSize = toPayloadSize(agreedMtu);
 
             // Build payload to produce exactly 3 chunks: 2 full chunks + 1 partial
             // Total length = chunkSize * 2 + remainder (where 1 <= remainder <= chunkSize)
             const chunk3Size = Math.min(chunkSize, 10); // 3rd chunk size (between 1 and chunkSize)
             const totalLength = chunkSize * 2 + chunk3Size;
 
-            const header = `PINEVO_3CHUNKS|chunk=${chunkSize}|total=${totalLength}|`;
+            const header = `PINEVO_3CHUNKS|mtu=${agreedMtu}|chunk=${chunkSize}|total=${totalLength}|`;
             const fillerLength = Math.max(0, totalLength - header.length);
             const payload = `${header}${'='.repeat(fillerLength)}`;
 
             const encoded = new TextEncoder().encode(payload);
             const chunks = splitIntoChunks(encoded, chunkSize);
 
-            console.log(`[BLE] Building 3-chunk test (chunk_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
+            console.log(`[BLE] Building 3-chunk test (mtu=${agreedMtu}, chunk_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
             for (let i = 0; i < chunks.length; i += 1) {
                 console.log(`[BLE]   Chunk ${i + 1}: ${chunks[i].length} bytes`);
             }
@@ -242,8 +293,15 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
 
             console.log(`[BLE] Test payload sent (${mode}), chunks=${chunks.length}:`, payload);
 
+            if (connectedDevice.nativeDevice?.gatt?.connected) {
+                connectedDevice.nativeDevice.gatt.disconnect();
+                console.log('[BLE] Disconnected after deployment completion');
+            }
+
             setIsDeploying(false);
             setDeploySuccess(true);
+            setConnectedDevice(null);
+            setWriteCharacteristic(null);
 
             setTimeout(() => {
                 onClose();
@@ -254,7 +312,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             setDeploySuccess(false);
             setError(`Deploy failed: ${err.message || err.name}`);
         }
-    }, [connectedDevice, onClose, writeCharacteristic]);
+    }, [agreedMtu, connectedDevice, onClose, writeCharacteristic]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
