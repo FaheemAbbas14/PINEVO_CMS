@@ -209,7 +209,10 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             const server = await gatt.connect();
             console.log('[BLE] Connected:', server.device.name);
 
+            // Request MTU and wait for exchange to complete (~500ms)
             const requestedMtu = await tryRequestMtu(gatt, server, DESIRED_MTU);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            
             const negotiatedMtu = resolveMtu(server, requestedMtu);
             setAgreedMtu(negotiatedMtu);
             console.log(`[BLE] MTU requested=${DESIRED_MTU}, agreed=${negotiatedMtu}, payload=${toPayloadSize(negotiatedMtu)}`);
