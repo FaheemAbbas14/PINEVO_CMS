@@ -6,13 +6,7 @@ const BLE_UUIDS = {
     RX_CHARACTERISTIC: 'abcdef02-1234-5678-9abc-def012345678',
 };
 
-const DEFAULT_MTU = 23;
-const DESIRED_MTU = 247;
-
-function toPayloadSize(mtu: number): number {
-    // ATT write payload is typically MTU - 3 bytes header.
-    return Math.max(1, mtu - 3);
-}
+const TEST_CHUNK_SIZE = 20;
 
 function splitIntoChunks(data: Uint8Array, chunkSize: number): Uint8Array[] {
     const chunks: Uint8Array[] = [];
@@ -20,50 +14,6 @@ function splitIntoChunks(data: Uint8Array, chunkSize: number): Uint8Array[] {
         chunks.push(data.slice(index, index + chunkSize));
     }
     return chunks;
-}
-
-async function tryRequestMtu(gatt: any, server: any, desiredMtu: number): Promise<number | null> {
-    try {
-        if (typeof gatt?.requestMtu === 'function') {
-            const mtu = await gatt.requestMtu(desiredMtu);
-            if (typeof mtu === 'number' && mtu > 0) {
-                return mtu;
-            }
-        }
-    } catch {
-        // Browser may not expose MTU request; continue with negotiated/default value.
-    }
-
-    try {
-        if (typeof server?.requestMtu === 'function') {
-            const mtu = await server.requestMtu(desiredMtu);
-            if (typeof mtu === 'number' && mtu > 0) {
-                return mtu;
-            }
-        }
-    } catch {
-        // Browser may not expose MTU request; continue with negotiated/default value.
-    }
-
-    return null;
-}
-
-function resolveMtu(server: any, requestedMtu: number | null): number {
-    const candidates = [
-        requestedMtu,
-        server?.mtu,
-        server?.device?.mtu,
-        server?.device?.platformMTU,
-        DEFAULT_MTU,
-    ];
-
-    for (const candidate of candidates) {
-        if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= DEFAULT_MTU) {
-            return candidate;
-        }
-    }
-
-    return DEFAULT_MTU;
 }
 
 async function writeTestPayload(
@@ -263,24 +213,21 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                 throw new Error('No writable BLE characteristic available');
             }
 
-            const requestedMtu = await tryRequestMtu(gatt, server, DESIRED_MTU);
-            const negotiatedMtu = resolveMtu(server, requestedMtu);
-
-            const chunkSize = toPayloadSize(negotiatedMtu);
+            const chunkSize = TEST_CHUNK_SIZE;
 
             // Build payload to produce exactly 3 chunks: 2 full chunks + 1 partial
             // Total length = chunkSize * 2 + remainder (where 1 <= remainder <= chunkSize)
             const chunk3Size = Math.min(chunkSize, 10); // 3rd chunk size (between 1 and chunkSize)
             const totalLength = chunkSize * 2 + chunk3Size;
 
-            const header = `PINEVO_3CHUNKS|mtu=${negotiatedMtu}|c_size=${chunkSize}|total=${totalLength}|`;
+            const header = `PINEVO_3CHUNKS|chunk=${chunkSize}|total=${totalLength}|`;
             const fillerLength = Math.max(0, totalLength - header.length);
             const payload = `${header}${'='.repeat(fillerLength)}`;
 
             const encoded = new TextEncoder().encode(payload);
             const chunks = splitIntoChunks(encoded, chunkSize);
 
-            console.log(`[BLE] Building 3-chunk test (mtu=${negotiatedMtu}, chunk_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
+            console.log(`[BLE] Building 3-chunk test (chunk_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
             for (let i = 0; i < chunks.length; i += 1) {
                 console.log(`[BLE]   Chunk ${i + 1}: ${chunks[i].length} bytes`);
             }
