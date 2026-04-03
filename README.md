@@ -31,6 +31,14 @@ Use the Export button in the top bar to choose the output format.
 - JSON export downloads a zip archive with a `json/` folder containing `project.json` plus one JSON file per screen.
 - JSON per-screen exports also include `json/assets/` so screen JSON files reference packaged assets and do not break on device.
 - Open Project accepts both the saved project format and the wrapped JSON export format.
+- CMS also provides a deployment bundle generator that creates one zip containing only the selected UI type (`ui/html/` or `ui/json/`), plus `config/ui_config.json` and `config/manifest.json` for device-side routing and file indexing.
+- Deployment config is designed for LittleFS storage (`/lfs/ui`) so firmware can load UI files directly from LFS instead of a static data folder.
+- Deployment metadata includes selected type, target LFS directory (`/lfs/ui/html` or `/lfs/ui/json`), and active entry path so firmware can write and load from the correct location.
+- BLE deployment now runs end-to-end from CMS state: build selected-type zip bundle, send `zip_start` packet with device routing metadata, stream `zip_chunk` packets, then send `zip_commit`.
+- BLE modal provides a manual "Download ZIP" action so you can inspect and verify the exact deployment bundle before sending.
+- BLE modal includes deployment progress and log output (phase, chunk counters, and send status) to help debug transfer issues.
+- Deployment packets are sent in strict sequence using `writeValueWithResponse`, so each packet is acknowledged at GATT level before the next packet is sent.
+- CMS now also waits for firmware protocol-level ACK notifications (`zip_start_ack`, `zip_chunk_ack`, `zip_commit_ack` or compatible `zip_ack`) before sending the next packet.
 
 ## Main Features
 
@@ -41,7 +49,7 @@ Use the Export button in the top bar to choose the output format.
 - Hardware-button configuration per screen
 - BLE deployment workflow scaffolding
 - BLE modal can connect to custom config service UUID `abcdef01-1234-5678-9abc-def012345678` and send a dummy test payload to RX characteristic UUID `abcdef02-1234-5678-9abc-def012345678` when Deploy to Device is clicked
-- After successful BLE connection, the modal attempts MTU negotiation (when supported) and uses the agreed MTU payload size for chunked deploy writes
+- BLE modal currently uses a fixed 244-byte payload chunk strategy (targeting MTU 247 links)
 
 ## Stack
 

@@ -1,7 +1,14 @@
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import type { CMSState } from '../types';
-import { generateHtmlExport, generateJsonExport, generateJsonScreensExport, getExportFileName } from '../services/exportService';
+import {
+  createBLEZipDeploymentPackets,
+  generateBLEDeploymentBundle,
+  generateHtmlExport,
+  generateJsonExport,
+  generateJsonScreensExport,
+  getExportFileName,
+} from '../services/exportService';
 
 const sampleState: CMSState = {
   project: {
@@ -225,5 +232,60 @@ describe('exportService', () => {
     expect(jsonZip.file('json/assets/audio_2.wav')).toBeTruthy();
     expect(jsonScreen).toContain('"imageUrl": "assets/image_1.png"');
     expect(jsonScreen).toContain('"buttonSound": "assets/audio_2.wav"');
+  });
+
+  it('builds deploy bundle with selected type only and 244-byte chunks', async () => {
+    const deployment = await generateBLEDeploymentBundle(sampleState, 'json', 244);
+    const zip = await JSZip.loadAsync(deployment.blob);
+    const configRaw = await zip.file('config/ui_config.json')?.async('string');
+    const manifestRaw = await zip.file('config/manifest.json')?.async('string');
+
+    expect(configRaw).toBeTruthy();
+    expect(manifestRaw).toBeTruthy();
+    expect(zip.file('ui/json/project.json')).toBeTruthy();
+    expect(zip.file('ui/json/Home.json')).toBeTruthy();
+    expect(zip.file('ui/html/index.html')).toBeFalsy();
+    expect(zip.file('ui/html/Home.html')).toBeFalsy();
+
+    const config = JSON.parse(configRaw || '{}');
+    const manifest = JSON.parse(manifestRaw || '{}');
+
+    expect(config.selectedType).toBe('json');
+    expect(config.targetLfsDirectory).toBe('/lfs/ui/json');
+    expect(config.activeEntryPath).toBe('ui/json/Home.json');
+    expect(config.landingScreenId).toBe('screen-1');
+    expect(config.landingScreenName).toBe('Home');
+    expect(config.storage.backend).toBe('lfs');
+    expect(config.paths.selectedRoot).toBe('ui/json');
+    expect(config.paths.selectedAssetsRoot).toBe('ui/json/assets');
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/html/index.html')).toBe(false);
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/project.json')).toBe(true);
+
+    expect(deployment.fileName).toBe('warehouse_flow_deploy_bundle.zip');
+    expect(deployment.chunkSize).toBe(244);
+    expect(deployment.chunks.length).toBeGreaterThan(0);
+    expect(deployment.chunks.every((chunk) => chunk.length <= 244)).toBe(true);
+  });
+
+  it('creates BLE start/chunk/commit packets from deploy bundle', async () => {
+    const deployment = await generateBLEDeploymentBundle(sampleState, 'html', 244);
+    const packets = createBLEZipDeploymentPackets(deployment);
+
+    expect(packets.start.cmd).toBe('zip_start');
+    expect(packets.start.fileName).toBe('warehouse_flow_deploy_bundle.zip');
+    expect(packets.start.selectedType).toBe('html');
+    expect(packets.start.targetLfsDirectory).toBe('/lfs/ui/html');
+    expect(packets.start.activeEntryPath).toBe('ui/html/Home.html');
+    expect(packets.start.landingScreenId).toBe('screen-1');
+    expect(packets.start.landingScreenName).toBe('Home');
+    expect(packets.start.totalChunks).toBe(deployment.chunks.length);
+
+    expect(packets.chunks.length).toBe(deployment.chunks.length);
+    expect(packets.chunks[0].cmd).toBe('zip_chunk');
+    expect(typeof packets.chunks[0].payloadBase64).toBe('string');
+    expect(packets.chunks[0].payloadBase64.length).toBeGreaterThan(0);
+
+    expect(packets.commit.cmd).toBe('zip_commit');
+    expect(packets.commit.fileName).toBe('warehouse_flow_deploy_bundle.zip');
   });
 });

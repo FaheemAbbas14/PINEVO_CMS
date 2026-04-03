@@ -1,45 +1,201 @@
 import { useState, useEffect, useCallback } from 'react';
 import './BLEMdal.css';
+import { useCMS } from '../../context/AppContext';
+import {
+    createBLEZipDeploymentPackets,
+    generateBLEDeploymentBundle,
+    type DeployUIType,
+} from '../../services/exportService';
 
 const BLE_UUIDS = {
     SERVICE: 'abcdef01-1234-5678-9abc-def012345678',
     RX_CHARACTERISTIC: 'abcdef02-1234-5678-9abc-def012345678',
+    ACK_CHARACTERISTIC: 'abcdef03-1234-5678-9abc-def012345678',
 };
 
-const DEFAULT_MTU = 23;
-const DESIRED_MTU = 247;
-const FIXED_PAYLOAD_SIZE = 244; // Device firmware always negotiates MTU 247 → payload 244
+const BLE_PACKET_CHUNK_SIZE = 120; // Keep base64+JSON packet size safely below BLE payload limit.
+const ACK_TIMEOUT_MS = 8000;
+const COMMIT_ACK_TIMEOUT_MS = 30000;
+const ACK_RETRY_COUNT = 2;
 
-function splitIntoChunks(data: Uint8Array, chunkSize: number): Uint8Array[] {
-    const chunks: Uint8Array[] = [];
-    for (let index = 0; index < data.length; index += chunkSize) {
-        chunks.push(data.slice(index, index + chunkSize));
+type AckMatcher = (ack: any) => boolean;
+
+function isAckTimeoutError(error: unknown, label: string): boolean {
+    return error instanceof Error && error.message.includes(`Timeout waiting for ${label} ACK`);
+}
+
+function decodeAckPayload(value: DataView | null): any | null {
+    if (!value) {
+        return null;
     }
-    return chunks;
+
+    try {
+        const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        const text = new TextDecoder().decode(bytes).replace(/\0/g, '').trim();
+
+        if (!text) {
+            return null;
+        }
+
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
+async function sendPacketWithAck(
+    characteristic: BluetoothRemoteGATTCharacteristic,
+    packet: unknown,
+    waitForAck: (matcher: AckMatcher, label: string, timeoutMs?: number) => Promise<any>,
+    matcher: AckMatcher,
+    label: string,
+    timeoutMs: number,
+    addLog: (level: DeploymentLogEntry['level'], message: string) => void,
+    retries = ACK_RETRY_COUNT
+): Promise<{ mode: 'with-response'; ack: any }> {
+    const packetBytes = new TextEncoder().encode(JSON.stringify(packet));
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
+        try {
+            const mode = await writeTestPayload(characteristic, packetBytes);
+            const ack = await waitForAck(matcher, label, timeoutMs);
+            return { mode, ack };
+        } catch (error) {
+            lastError = error;
+            if (attempt <= retries) {
+                addLog('warn', `${label} ACK wait failed (attempt ${attempt}/${retries + 1}), retrying...`);
+            }
+        }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(`Failed sending ${label}`);
+}
+
+function isAckSuccessful(ack: any): boolean {
+    const cmd = String(ack?.cmd || '').toLowerCase();
+    const status = String(ack?.status || ack?.result || '').toLowerCase();
+
+    if (cmd === 'zip_nack' || cmd === 'nack') {
+        return false;
+    }
+
+    if (status === 'error' || status === 'nack' || status === 'failed') {
+        return false;
+    }
+
+    if (ack?.ok === false) {
+        return false;
+    }
+
+    return true;
+}
+
+function downloadBundle(blob: Blob, fileName: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
+
+async function setupAckNotifications(
+    service: BluetoothRemoteGATTService,
+    writeCharacteristic: BluetoothRemoteGATTCharacteristic
+): Promise<{
+    waitForAck: (matcher: AckMatcher, label: string, timeoutMs?: number) => Promise<any>;
+    cleanup: () => Promise<void>;
+}> {
+    let notifyCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+
+    try {
+        notifyCharacteristic = await service.getCharacteristic(BLE_UUIDS.ACK_CHARACTERISTIC);
+    } catch {
+        // Fallback handled below.
+    }
+
+    if (!notifyCharacteristic && (writeCharacteristic.properties.notify || writeCharacteristic.properties.indicate)) {
+        notifyCharacteristic = writeCharacteristic;
+    }
+
+    if (!notifyCharacteristic) {
+        throw new Error('ACK characteristic not found. Firmware ACK flow requires a notify/indicate characteristic.');
+    }
+
+    await notifyCharacteristic.startNotifications();
+
+    const waiters: Array<{
+        matcher: AckMatcher;
+        resolve: (ack: any) => void;
+        reject: (reason: Error) => void;
+        timerId: ReturnType<typeof setTimeout>;
+    }> = [];
+
+    const onAck = (event: Event) => {
+        const target = event.target as unknown as BluetoothRemoteGATTCharacteristic;
+        const ack = decodeAckPayload(target.value);
+
+        if (!ack) {
+            return;
+        }
+
+        for (let index = 0; index < waiters.length; index += 1) {
+            const waiter = waiters[index];
+            if (waiter.matcher(ack)) {
+                clearTimeout(waiter.timerId);
+                waiters.splice(index, 1);
+                waiter.resolve(ack);
+                break;
+            }
+        }
+    };
+
+    notifyCharacteristic.addEventListener('characteristicvaluechanged', onAck);
+
+    return {
+        waitForAck: (matcher: AckMatcher, label: string, timeoutMs = ACK_TIMEOUT_MS) => new Promise((resolve, reject) => {
+            const timerId = setTimeout(() => {
+                const waiterIndex = waiters.findIndex((item) => item.timerId === timerId);
+                if (waiterIndex >= 0) {
+                    waiters.splice(waiterIndex, 1);
+                }
+                reject(new Error(`Timeout waiting for ${label} ACK (${timeoutMs}ms)`));
+            }, timeoutMs);
+
+            waiters.push({ matcher, resolve, reject, timerId });
+        }),
+        cleanup: async () => {
+            notifyCharacteristic?.removeEventListener('characteristicvaluechanged', onAck);
+            waiters.forEach((waiter) => {
+                clearTimeout(waiter.timerId);
+                waiter.reject(new Error('ACK listener stopped before response was received'));
+            });
+            waiters.length = 0;
+
+            try {
+                if (notifyCharacteristic && notifyCharacteristic.properties.notify) {
+                    await notifyCharacteristic.stopNotifications();
+                }
+            } catch {
+                // Ignore cleanup notification errors.
+            }
+        },
+    };
 }
 
 async function writeTestPayload(
     characteristic: BluetoothRemoteGATTCharacteristic,
     value: Uint8Array
-): Promise<'with-response' | 'without-response' | 'basic'> {
+): Promise<'with-response'> {
     const buffer = new Uint8Array(value).buffer;
 
-    try {
-        await characteristic.writeValueWithResponse(buffer);
-        return 'with-response';
-    } catch {
-        // Some firmwares expose write without response only.
+    if (typeof characteristic.writeValueWithResponse !== 'function') {
+        throw new Error('Characteristic does not support write-with-response. Sequential delivery requires ACK-based writes.');
     }
 
-    try {
-        await characteristic.writeValueWithoutResponse(buffer);
-        return 'without-response';
-    } catch {
-        // Some browsers only implement writeValue.
-    }
-
-    await characteristic.writeValue(buffer);
-    return 'basic';
+    await characteristic.writeValueWithResponse(buffer);
+    return 'with-response';
 }
 
 interface BLEDevice {
@@ -53,9 +209,24 @@ interface BLEModalProps {
     isOpen: boolean;
     onClose: () => void;
     onConnect: (device: BLEDevice) => void;
+    selectedDeployType?: DeployUIType;
+    onDeployTypeChange?: (type: DeployUIType) => void;
 }
 
-export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
+interface DeploymentLogEntry {
+    timestamp: number;
+    level: 'info' | 'warn' | 'error' | 'debug';
+    message: string;
+}
+
+export default function BLEMdal({
+    isOpen,
+    onClose,
+    onConnect,
+    selectedDeployType = 'html',
+    onDeployTypeChange,
+}: BLEModalProps) {
+    const { state } = useCMS();
     const [isScanning, setIsScanning] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [devices, setDevices] = useState<BLEDevice[]>([]);
@@ -65,7 +236,20 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
     const [bluetoothSupported, setBluetoothSupported] = useState(true);
     const [isDeploying, setIsDeploying] = useState(false);
     const [deploySuccess, setDeploySuccess] = useState(false);
-    const [agreedMtu, setAgreedMtu] = useState(DEFAULT_MTU);
+    const [deployType, setDeployType] = useState<DeployUIType>(selectedDeployType);
+    const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'committing' | 'complete'>('idle');
+    const [deployCurrentChunk, setDeployCurrentChunk] = useState(0);
+    const [deployTotalChunks, setDeployTotalChunks] = useState(0);
+
+    const addLog = useCallback((level: DeploymentLogEntry['level'], message: string) => {
+        const consoleMethod = level === 'warn' ? 'warn' : level === 'error' ? 'error' : 'log';
+        console[consoleMethod](`[BLE Deploy] ${message}`);
+    }, []);
+
+    const handleDeployTypeChange = useCallback((nextType: DeployUIType) => {
+        setDeployType(nextType);
+        onDeployTypeChange?.(nextType);
+    }, [onDeployTypeChange]);
 
     // Reset state when modal closes
     useEffect(() => {
@@ -78,9 +262,12 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             setIsConnecting(false);
             setIsDeploying(false);
             setDeploySuccess(false);
-            setAgreedMtu(DEFAULT_MTU);
+            setDeployType(selectedDeployType);
+            setDeployPhase('idle');
+            setDeployCurrentChunk(0);
+            setDeployTotalChunks(0);
         }
-    }, [isOpen]);
+    }, [isOpen, selectedDeployType]);
 
     // Check Web Bluetooth support
     useEffect(() => {
@@ -168,9 +355,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             const server = await gatt.connect();
             console.log('[BLE] Connected:', server.device.name);
 
-            // Device handles MTU negotiation automatically; use fixed payload size
-            setAgreedMtu(DESIRED_MTU);
-            console.log(`[BLE] Connected, using fixed payload size=${FIXED_PAYLOAD_SIZE} bytes`);
+            console.log('[BLE] Connected');
 
             setConnectedDevice(device);
             setWriteCharacteristic(null);
@@ -194,8 +379,29 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
         }
         setConnectedDevice(null);
         setWriteCharacteristic(null);
-        setAgreedMtu(DEFAULT_MTU);
     }, [connectedDevice]);
+
+    const handleDownloadZip = useCallback(async () => {
+        if (!state.project) {
+            setError('No project loaded. Create or open a project before downloading ZIP.');
+            return;
+        }
+
+        if (!state.screens.length) {
+            setError('No screens available to export.');
+            return;
+        }
+
+        try {
+            setError(null);
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_PACKET_CHUNK_SIZE);
+            downloadBundle(bundle.blob, bundle.fileName);
+            addLog('info', `Deployment zip downloaded: ${bundle.fileName}`);
+        } catch (err: any) {
+            setError(`ZIP download failed: ${err.message || err.name}`);
+            addLog('error', `ZIP download failed: ${err.message || err.name}`);
+        }
+    }, [addLog, deployType, state]);
 
     const handleDeploy = useCallback(async () => {
         if (!connectedDevice?.nativeDevice?.gatt) {
@@ -203,9 +409,24 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             return;
         }
 
+        if (!state.project) {
+            setError('No project loaded. Create or open a project before deployment.');
+            return;
+        }
+
+        if (!state.screens.length) {
+            setError('No screens available to deploy.');
+            return;
+        }
+
         setIsDeploying(true);
         setDeploySuccess(false);
         setError(null);
+        setDeployPhase('preparing');
+        setDeployCurrentChunk(0);
+        setDeployTotalChunks(0);
+        let ackChannel: Awaited<ReturnType<typeof setupAckNotifications>> | null = null;
+        let protocolAckEnabled = false;
 
         try {
             const gatt = connectedDevice.nativeDevice.gatt;
@@ -222,44 +443,166 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                 throw new Error('No writable BLE characteristic available');
             }
 
-            const chunkSize = FIXED_PAYLOAD_SIZE; // Always use 244 bytes
-
-            // Build payload to produce exactly 3 chunks: 2 full @ 244 bytes + 1 partial
-            // With 247 MTU: chunk_size = 244 bytes, so 3 chunks = 488 + remainder
-            const chunk3Size = 25; // 3rd chunk: 25 bytes (can be 1-244)
-            const totalLength = chunkSize * 2 + chunk3Size; // 244 * 2 + 25 = 513 bytes
-
-            const header = `PINEVO_3CHUNKS|mtu=247|chunk=${chunkSize}|total=${totalLength}|`;
-            const fillerLength = Math.max(0, totalLength - header.length);
-            const payload = `${header}${'='.repeat(fillerLength)}`;
-
-            const encoded = new TextEncoder().encode(payload);
-            const chunks = splitIntoChunks(encoded, chunkSize);
-
-            console.log(`[BLE] Building 3-chunk test for MTU=247 (payload_size=${chunkSize}, total_bytes=${encoded.byteLength})`);
-            for (let i = 0; i < chunks.length; i += 1) {
-                console.log(`[BLE]   Chunk ${i + 1}: ${chunks[i].length} bytes`);
+            const service = await server.getPrimaryService(BLE_UUIDS.SERVICE);
+            try {
+                ackChannel = await setupAckNotifications(service, characteristic);
+                protocolAckEnabled = true;
+                addLog('info', 'Protocol ACK channel enabled');
+            } catch (ackSetupError: any) {
+                protocolAckEnabled = false;
+                addLog('warn', `Protocol ACK unavailable (${ackSetupError?.message || 'unknown'}), using GATT sequential mode`);
             }
 
-            let mode: 'with-response' | 'without-response' | 'basic' = 'basic';
-            for (let index = 0; index < chunks.length; index += 1) {
-                mode = await writeTestPayload(characteristic, chunks[index]);
-                if (index < chunks.length - 1) {
+            addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_PACKET_CHUNK_SIZE);
+            const packets = createBLEZipDeploymentPackets(bundle);
+            setDeployTotalChunks(packets.chunks.length);
+
+            addLog('info', `Bundle file=${bundle.fileName}, bytes=${bundle.bytes.byteLength}, chunks=${packets.chunks.length}`);
+            addLog('info', `Device target type=${packets.start.selectedType}, lfs_dir=${packets.start.targetLfsDirectory}`);
+
+            setDeployPhase('starting');
+            if (protocolAckEnabled && ackChannel) {
+                try {
+                    const startResponse = await sendPacketWithAck(
+                        characteristic,
+                        packets.start,
+                        ackChannel.waitForAck,
+                        (ack) => {
+                            const cmd = String(ack?.cmd || '').toLowerCase();
+                            const packet = String(ack?.packet || ack?.type || '').toLowerCase();
+                            return cmd === 'zip_start_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_start' || packet === 'start' || packet === ''));
+                        },
+                        'zip_start',
+                        ACK_TIMEOUT_MS,
+                        addLog,
+                        0
+                    );
+
+                    const startAck = startResponse.ack;
+                    if (!isAckSuccessful(startAck)) {
+                        throw new Error(`Device rejected zip_start: ${JSON.stringify(startAck)}`);
+                    }
+                    addLog('debug', `Start packet sent (${startResponse.mode}), ack=ok`);
+                } catch (startAckError) {
+                    if (isAckTimeoutError(startAckError, 'zip_start')) {
+                        protocolAckEnabled = false;
+                        addLog('warn', 'zip_start ACK timeout, falling back to GATT sequential mode');
+                    } else {
+                        throw startAckError;
+                    }
+                }
+            } else {
+                const startPacketBytes = new TextEncoder().encode(JSON.stringify(packets.start));
+                const mode = await writeTestPayload(characteristic, startPacketBytes);
+                addLog('debug', `Start packet sent (${mode}), no protocol ACK mode`);
+            }
+
+            setDeployPhase('uploading');
+            for (let index = 0; index < packets.chunks.length; index += 1) {
+                const chunkPacket = packets.chunks[index];
+                const expectedIndex = index;
+                if (protocolAckEnabled && ackChannel) {
+                    try {
+                        const chunkResponse = await sendPacketWithAck(
+                            characteristic,
+                            chunkPacket,
+                            ackChannel.waitForAck,
+                            (ack) => {
+                                const cmd = String(ack?.cmd || '').toLowerCase();
+                                const packet = String(ack?.packet || ack?.type || '').toLowerCase();
+                                const ackIndex = typeof ack?.index === 'number' ? ack.index : typeof ack?.chunk_index === 'number' ? ack.chunk_index : -1;
+
+                                if (cmd === 'zip_chunk_ack' && ackIndex === expectedIndex) {
+                                    return true;
+                                }
+
+                                if ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_chunk' || packet === 'chunk' || packet === '') && ackIndex === expectedIndex) {
+                                    return true;
+                                }
+
+                                return false;
+                            },
+                            `zip_chunk[${index}]`,
+                            ACK_TIMEOUT_MS,
+                            addLog
+                        );
+
+                        const chunkAck = chunkResponse.ack;
+
+                        if (!isAckSuccessful(chunkAck)) {
+                            throw new Error(`Device rejected chunk ${index + 1}: ${JSON.stringify(chunkAck)}`);
+                        }
+                    } catch (chunkAckError) {
+                        if (isAckTimeoutError(chunkAckError, `zip_chunk[${index}]`)) {
+                            protocolAckEnabled = false;
+                            addLog('warn', `Chunk ${index + 1} ACK timeout, switching to GATT sequential mode`);
+                        } else {
+                            throw chunkAckError;
+                        }
+                    }
+                } else {
+                    const chunkPacketBytes = new TextEncoder().encode(JSON.stringify(chunkPacket));
+                    await writeTestPayload(characteristic, chunkPacketBytes);
+                }
+
+                setDeployCurrentChunk(index + 1);
+
+                if ((index + 1) % 10 === 0 || index === packets.chunks.length - 1) {
+                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent and ACKed`);
+                }
+
+                if (index < packets.chunks.length - 1) {
                     await new Promise((resolve) => setTimeout(resolve, 15));
                 }
             }
 
-            console.log(`[BLE] Test payload sent (${mode}), chunks=${chunks.length}:`, payload);
+            setDeployPhase('committing');
+            if (protocolAckEnabled && ackChannel) {
+                try {
+                    const commitResponse = await sendPacketWithAck(
+                        characteristic,
+                        packets.commit,
+                        ackChannel.waitForAck,
+                        (ack) => {
+                            const cmd = String(ack?.cmd || '').toLowerCase();
+                            const packet = String(ack?.packet || ack?.type || '').toLowerCase();
+                            return cmd === 'zip_commit_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
+                        },
+                        'zip_commit',
+                        COMMIT_ACK_TIMEOUT_MS,
+                        addLog,
+                        0
+                    );
 
-            if (connectedDevice.nativeDevice?.gatt?.connected) {
-                connectedDevice.nativeDevice.gatt.disconnect();
-                console.log('[BLE] Disconnected after deployment completion');
+                    const commitAck = commitResponse.ack;
+
+                    if (!isAckSuccessful(commitAck)) {
+                        throw new Error(`Device rejected zip_commit: ${JSON.stringify(commitAck)}`);
+                    }
+
+                    addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received, deploy completed.`);
+                } catch (commitAckError) {
+                    if (isAckTimeoutError(commitAckError, 'zip_commit')) {
+                        const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
+                        const mode = await writeTestPayload(characteristic, commitPacketBytes);
+                        addLog('warn', `zip_commit ACK timeout, continuing in GATT sequential mode (${mode})`);
+                    } else {
+                        throw commitAckError;
+                    }
+                }
+            } else {
+                const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
+                const mode = await writeTestPayload(characteristic, commitPacketBytes);
+                addLog('info', `Commit packet sent (${mode}), no protocol ACK mode.`);
             }
+            setDeployPhase('complete');
+
+            // Give the peripheral a short window to flush final logs/state before disconnect.
+            await new Promise((resolve) => setTimeout(resolve, 250));
 
             setIsDeploying(false);
             setDeploySuccess(true);
-            setConnectedDevice(null);
-            setWriteCharacteristic(null);
 
             setTimeout(() => {
                 onClose();
@@ -269,8 +612,14 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
             setIsDeploying(false);
             setDeploySuccess(false);
             setError(`Deploy failed: ${err.message || err.name}`);
+            addLog('error', `Deploy failed: ${err.message || err.name}`);
+            setDeployPhase('idle');
+        } finally {
+            if (ackChannel) {
+                await ackChannel.cleanup();
+            }
         }
-    }, [agreedMtu, connectedDevice, onClose, writeCharacteristic]);
+    }, [addLog, connectedDevice, deployType, onClose, state, writeCharacteristic]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Escape') {
@@ -347,6 +696,45 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                                 </svg>
                                 <span>Connected to {connectedDevice.name}</span>
                             </div>
+                            <div className="ble-deployment-options">
+                                <div className="ble-option-group">
+                                    <label htmlFor="ble-ui-type">UI Type</label>
+                                    <select
+                                        id="ble-ui-type"
+                                        value={deployType}
+                                        onChange={(event) => handleDeployTypeChange(event.target.value as DeployUIType)}
+                                        disabled={isDeploying}
+                                    >
+                                        <option value="html">HTML</option>
+                                        <option value="json">JSON</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {isDeploying && (
+                                <div className="ble-deployment-progress">
+                                    <div className="ble-progress-header">
+                                        <span className="ble-progress-phase">{deployPhase}</span>
+                                        <span className="ble-progress-percent">
+                                            {deployTotalChunks > 0 ? Math.round((deployCurrentChunk / deployTotalChunks) * 100) : 0}%
+                                        </span>
+                                    </div>
+                                    <div className="ble-progress-bar">
+                                        <div
+                                            className="ble-progress-fill"
+                                            style={{
+                                                width: `${deployTotalChunks > 0 ? Math.round((deployCurrentChunk / deployTotalChunks) * 100) : 0}%`,
+                                            }}
+                                        ></div>
+                                    </div>
+                                    <div className="ble-progress-chunks">
+                                        {deployTotalChunks > 0
+                                            ? `Chunk ${deployCurrentChunk}/${deployTotalChunks}`
+                                            : 'Waiting to start'}
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="ble-connected-actions">
                                 <button
                                     className={`ble-deploy-btn ${isDeploying ? 'deploying' : ''} ${deploySuccess ? 'success' : ''}`}
@@ -356,7 +744,7 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                                     {isDeploying ? (
                                         <>
                                             <span className="ble-spinner"></span>
-                                            Sending test payload...
+                                            Deploying {deployType.toUpperCase()} bundle...
                                         </>
                                     ) : deploySuccess ? (
                                         <>
@@ -375,6 +763,20 @@ export default function BLEMdal({ isOpen, onClose, onConnect }: BLEModalProps) {
                                             Deploy to Device
                                         </>
                                     )}
+                                </button>
+                                <button
+                                    className="ble-download-btn"
+                                    onClick={() => {
+                                        void handleDownloadZip();
+                                    }}
+                                    disabled={isDeploying}
+                                >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg>
+                                    Download ZIP
                                 </button>
                                 <button
                                     className="ble-disconnect-btn"

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareButtonId, HardwareButtonConfig } from '../types';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
@@ -214,7 +214,7 @@ interface CMSContextValue {
   moveComponent: (componentId: string, x: number, y: number) => void;
   saveScreens: () => Promise<void>;
   saveAsHtml: () => Promise<void>;
-  saveProject: () => void;
+  saveProject: () => Promise<void>;
   loadProject: () => void;
   setSandboxMode: (enabled: boolean) => void;
   setPreviewMode: (enabled: boolean) => void;
@@ -228,6 +228,7 @@ const CMSContext = createContext<CMSContextValue | null>(null);
 
 export function CMSProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cmsReducer, initialState);
+  const currentProjectFileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
   const activeScreen = state.screens.find((s) => s.id === state.activeScreenId);
   const selectedComponent = activeScreen?.components.find((c) => c.id === state.selectedComponentId);
@@ -304,7 +305,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     downloadFile(htmlBundle.blob, 'application/zip', htmlBundle.fileName);
   }, [state]);
 
-  const saveProject = useCallback(() => {
+  const saveProject = useCallback(async () => {
     if (!state.project) {
       alert('No project to save. Please create or open a project first.');
       return;
@@ -318,6 +319,39 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     };
 
     const json = JSON.stringify(projectData, null, 2);
+    const pickerWindow = window as any;
+
+    try {
+      if (typeof pickerWindow.showSaveFilePicker === 'function') {
+        let handle = currentProjectFileHandleRef.current;
+
+        if (!handle) {
+          handle = await pickerWindow.showSaveFilePicker({
+            suggestedName: `${state.project.name.replace(/\s+/g, '_')}_project.json`,
+            types: [{
+              description: 'JSON Files',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+          currentProjectFileHandleRef.current = handle;
+        }
+
+        if (!handle) {
+          return;
+        }
+
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        return;
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return;
+      }
+      console.warn('Save picker failed, falling back to download:', err);
+    }
+
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -328,6 +362,47 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
   }, [state.project, state.screens, state.activeScreenId, state.sandboxConfig]);
 
   const loadProject = useCallback(() => {
+    const pickerWindow = window as any;
+
+    if (typeof pickerWindow.showOpenFilePicker === 'function') {
+      void (async () => {
+        try {
+          const [handle] = await pickerWindow.showOpenFilePicker({
+            multiple: false,
+            types: [{
+              description: 'JSON Files',
+              accept: { 'application/json': ['.json'] },
+            }],
+          });
+
+          if (!handle) return;
+
+          const file = await handle.getFile();
+          const text = await file.text();
+          const projectData = JSON.parse(text);
+          const importedState = projectData.state || projectData;
+
+          if (!importedState.project || !importedState.screens) {
+            alert('Invalid project file. Please select a valid PINEVO project file.');
+            return;
+          }
+
+          currentProjectFileHandleRef.current = handle;
+          dispatch({ type: 'SET_PROJECT', payload: importedState.project });
+          dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
+          dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
+          dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            return;
+          }
+          console.error('Error loading project:', err);
+          alert('Failed to load project. Please select a valid PINEVO project file.');
+        }
+      })();
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
@@ -345,6 +420,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        currentProjectFileHandleRef.current = null;
         // Load the project data
         dispatch({ type: 'SET_PROJECT', payload: importedState.project });
         dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
@@ -389,6 +465,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
+    currentProjectFileHandleRef.current = null;
     dispatch({ type: 'RESET_STATE' });
   }, []);
 

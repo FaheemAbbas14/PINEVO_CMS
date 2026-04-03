@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCMS } from '../../context/AppContext';
+import type { DeployUIType } from '../../services/exportService';
 import NewProjectModal from '../NewProjectModal/NewProjectModal';
 import BLEModal from '../BLEMdal/BLEMdal';
 import './TopBar.css';
@@ -22,6 +23,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
   const [editingScreenId, setEditingScreenId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [selectedDeployType, setSelectedDeployType] = useState<DeployUIType>('html');
 
   const handleBLEConnect = (device: BLEDevice) => {
     setBleDevice(device);
@@ -187,14 +189,14 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                 {showExportDropdown && (
                   <div className="export-dropdown" role="menu">
                     <div className="export-dropdown-label">Select export format</div>
-                    <button className="export-option" onClick={() => { void saveAsHtml(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as HTML">
+                    <button className="export-option" onClick={() => { setSelectedDeployType('html'); void saveAsHtml(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as HTML">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
                       </svg>
                       HTML
                     </button>
-                    <button className="export-option" onClick={() => { void saveScreens(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as JSON">
+                    <button className="export-option" onClick={() => { setSelectedDeployType('json'); void saveScreens(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as JSON">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -260,6 +262,8 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
         isOpen={showBLEModal}
         onClose={() => setShowBLEModal(false)}
         onConnect={handleBLEConnect}
+        selectedDeployType={selectedDeployType}
+        onDeployTypeChange={setSelectedDeployType}
       />
     </>
   );

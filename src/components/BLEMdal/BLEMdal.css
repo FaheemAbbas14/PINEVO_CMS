@@ -160,6 +160,8 @@
 
 .ble-connected-actions {
     display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
     gap: 12px;
     width: 100%;
     margin-top: 16px;
@@ -168,16 +170,19 @@
 /* Deployment Options */
 .ble-deployment-options {
     display: flex;
+    flex-wrap: wrap;
     gap: 16px;
     padding: 12px;
     background: #f8fafc;
     border-radius: 8px;
     margin-bottom: 12px;
+    width: 100%;
 }
 
 .ble-option-group {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
 }
 
@@ -296,7 +301,8 @@
 }
 
 .ble-deploy-btn {
-    flex: 2;
+    flex: 1 1 220px;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -310,6 +316,7 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    text-align: center;
 }
 
 .ble-deploy-btn:hover:not(:disabled) {
@@ -329,7 +336,8 @@
 }
 
 .ble-disconnect-btn {
-    flex: 1;
+    flex: 1 1 160px;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -343,6 +351,35 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    text-align: center;
+}
+
+.ble-download-btn {
+    flex: 1 1 160px;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 8px;
+    color: #4338ca;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.ble-download-btn:hover:not(:disabled) {
+    background: #e0e7ff;
+}
+
+.ble-download-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .ble-disconnect-btn:hover:not(:disabled) {
@@ -539,5 +576,15 @@
 
     .ble-modal-header h2 {
         font-size: 16px;
+    }
+
+    .ble-connected-actions {
+        gap: 10px;
+    }
+
+    .ble-deploy-btn,
+    .ble-download-btn,
+    .ble-disconnect-btn {
+        flex: 1 1 100%;
     }
 }

@@ -8,6 +8,7 @@ import {
 } from '../types';
 
 type ExportFormat = 'json' | 'html';
+export type DeployUIType = 'html' | 'json';
 
 interface ExportPayload {
   meta: {
@@ -28,6 +29,74 @@ interface HtmlExportBundle {
 interface JsonExportBundle {
   blob: Blob;
   fileName: string;
+}
+
+export interface UIDeployConfig {
+  selectedType: DeployUIType;
+  targetLfsDirectory: string;
+  activeEntryPath: string;
+  landingScreenId: string;
+  landingScreenName: string;
+  storage: {
+    backend: 'lfs';
+    basePath: string;
+  };
+  paths: {
+    selectedRoot: string;
+    selectedAssetsRoot: string;
+  };
+}
+
+export interface UIDeployManifest {
+  version: 1;
+  generatedAt: string;
+  projectName: string;
+  files: Array<{
+    path: string;
+    size: number;
+    type: 'text' | 'binary';
+  }>;
+}
+
+export interface UIDeploymentBundle {
+  blob: Blob;
+  fileName: string;
+  bytes: Uint8Array;
+  chunks: Uint8Array[];
+  chunkSize: number;
+  config: UIDeployConfig;
+  manifest: UIDeployManifest;
+}
+
+export interface BLEZipStartPacket {
+  cmd: 'zip_start';
+  fileName: string;
+  selectedType: DeployUIType;
+  targetLfsDirectory: string;
+  activeEntryPath: string;
+  landingScreenId: string;
+  landingScreenName: string;
+  totalBytes: number;
+  totalChunks: number;
+  chunkSize: number;
+}
+
+export interface BLEZipChunkPacket {
+  cmd: 'zip_chunk';
+  index: number;
+  totalChunks: number;
+  payloadBase64: string;
+}
+
+export interface BLEZipCommitPacket {
+  cmd: 'zip_commit';
+  fileName: string;
+}
+
+export interface BLEZipDeploymentPackets {
+  start: BLEZipStartPacket;
+  chunks: BLEZipChunkPacket[];
+  commit: BLEZipCommitPacket;
 }
 
 interface EmbeddedAsset {
@@ -449,6 +518,64 @@ export function generateJsonExport(state: CMSState) {
   return JSON.stringify(createExportPayload(state), null, 2);
 }
 
+function splitBinaryIntoChunks(data: Uint8Array, chunkSize: number) {
+  const chunks: Uint8Array[] = [];
+  for (let index = 0; index < data.length; index += chunkSize) {
+    chunks.push(data.slice(index, index + chunkSize));
+  }
+  return chunks;
+}
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary);
+}
+
+function resolveLandingScreen(screens: Screen[]): Screen | null {
+  if (!screens.length) {
+    return null;
+  }
+
+  const homeScreen = screens.find((screen) => screen.name.trim().toLowerCase() === 'home');
+  return homeScreen || screens[0];
+}
+
+function createDeployConfig(
+  selectedType: DeployUIType,
+  screens: Screen[],
+  screenFileNames: Map<string, string>
+): UIDeployConfig {
+  const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
+  const landingScreen = resolveLandingScreen(screens);
+  const fallbackEntry = selectedType === 'html' ? 'index.html' : 'project.json';
+  const landingEntryFile = landingScreen ? (screenFileNames.get(landingScreen.id) || fallbackEntry) : fallbackEntry;
+  const activeEntryPath = `${selectedRoot}/${landingEntryFile}`;
+
+  return {
+    selectedType,
+    targetLfsDirectory: `/lfs/ui/${selectedType}`,
+    activeEntryPath,
+    landingScreenId: landingScreen?.id || '',
+    landingScreenName: landingScreen?.name || '',
+    storage: {
+      backend: 'lfs',
+      basePath: '/lfs/ui',
+    },
+    paths: {
+      selectedRoot,
+      selectedAssetsRoot: `${selectedRoot}/assets`,
+    },
+  };
+}
+
+function createDeployFileName(state: CMSState) {
+  const baseName = sanitizeFileSegment(state.project?.name || 'pinevo_screens');
+  return `${baseName}_deploy_bundle.zip`;
+}
+
 function generateScreenJsonExport(
   state: CMSState,
   screen: Screen,
@@ -543,5 +670,125 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   return {
     blob,
     fileName: getExportFileName(state, 'html'),
+  };
+}
+
+export async function generateBLEDeploymentBundle(
+  state: CMSState,
+  selectedType: DeployUIType = 'html',
+  chunkSize = 244
+): Promise<UIDeploymentBundle> {
+  const zip = new JSZip();
+  const configFolder = zip.folder('config');
+  const targetByScreenId = new Map(state.screens.map((screen) => [screen.id, sanitizeIdentifier(screen.name)]));
+  const assetRegistry = collectEmbeddedAssets(state.screens);
+  const fileEntries: UIDeployManifest['files'] = [];
+
+  const selectedFolderPath = selectedType === 'html' ? 'ui/html' : 'ui/json';
+  const selectedFolder = zip.folder(selectedFolderPath);
+  const screenFileNames = buildScreenFileMap(state.screens, selectedType);
+  const config = createDeployConfig(selectedType, state.screens, screenFileNames);
+
+  if (!selectedFolder || !configFolder) {
+    throw new Error('Failed to create deployment zip folders.');
+  }
+
+  const addTextFile = (path: string, content: string) => {
+    zip.file(path, content);
+    fileEntries.push({
+      path,
+      size: new TextEncoder().encode(content).length,
+      type: 'text',
+    });
+  };
+
+  const addBinaryFile = (path: string, content: Uint8Array) => {
+    zip.file(path, content);
+    fileEntries.push({
+      path,
+      size: content.byteLength,
+      type: 'binary',
+    });
+  };
+
+  if (selectedType === 'html') {
+    addTextFile('ui/html/index.html', generateIndexHtml(state, screenFileNames));
+    addTextFile('ui/html/project.json', generateJsonExport(state));
+  } else {
+    addTextFile('ui/json/project.json', generateJsonExport(state));
+  }
+
+  state.screens.forEach((screen) => {
+    const fileName = screenFileNames.get(screen.id);
+    if (!fileName) {
+      return;
+    }
+
+    if (selectedType === 'html') {
+      addTextFile(
+        `ui/html/${fileName}`,
+        generateScreenHtml(state, screen, targetByScreenId, assetRegistry.references)
+      );
+    } else {
+      addTextFile(
+        `ui/json/${fileName}`,
+        generateScreenJsonExport(state, screen, targetByScreenId, assetRegistry.references)
+      );
+    }
+  });
+
+  assetRegistry.assets.forEach((asset) => {
+    addBinaryFile(`${selectedFolderPath}/${asset.relativePath}`, asset.bytes);
+  });
+
+  addTextFile('config/ui_config.json', JSON.stringify(config, null, 2));
+
+  const manifest: UIDeployManifest = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    projectName: state.project?.name || 'PINEVO CMS Export',
+    files: fileEntries,
+  };
+  addTextFile('config/manifest.json', JSON.stringify(manifest, null, 2));
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const safeChunkSize = Math.max(1, chunkSize);
+
+  return {
+    blob,
+    fileName: createDeployFileName(state),
+    bytes,
+    chunks: splitBinaryIntoChunks(bytes, safeChunkSize),
+    chunkSize: safeChunkSize,
+    config,
+    manifest,
+  };
+}
+
+export function createBLEZipDeploymentPackets(bundle: UIDeploymentBundle): BLEZipDeploymentPackets {
+  return {
+    start: {
+      cmd: 'zip_start',
+      fileName: bundle.fileName,
+      selectedType: bundle.config.selectedType,
+      targetLfsDirectory: bundle.config.targetLfsDirectory,
+      activeEntryPath: bundle.config.activeEntryPath,
+      landingScreenId: bundle.config.landingScreenId,
+      landingScreenName: bundle.config.landingScreenName,
+      totalBytes: bundle.bytes.byteLength,
+      totalChunks: bundle.chunks.length,
+      chunkSize: bundle.chunkSize,
+    },
+    chunks: bundle.chunks.map((chunk, index) => ({
+      cmd: 'zip_chunk',
+      index,
+      totalChunks: bundle.chunks.length,
+      payloadBase64: bytesToBase64(chunk),
+    })),
+    commit: {
+      cmd: 'zip_commit',
+      fileName: bundle.fileName,
+    },
   };
 }
