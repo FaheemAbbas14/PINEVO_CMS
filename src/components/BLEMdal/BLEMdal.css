@@ -251,6 +251,29 @@
     text-align: center;
 }
 
+.ble-complete-flash {
+    margin: 6px 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #047857;
+    text-align: center;
+    animation: bleCompletePulse 0.7s ease-in-out infinite;
+}
+
+@keyframes bleCompletePulse {
+    0% {
+        opacity: 0.25;
+    }
+
+    50% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0.25;
+    }
+}
+
 /* Deployment Logs */
 .ble-deployment-logs {
     padding: 12px;

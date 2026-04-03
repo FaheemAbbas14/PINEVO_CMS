@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './BLEMdal.css';
 import { useCMS } from '../../context/AppContext';
-import { BLE_CMS_UUIDS, BLE_LIMITS, BLE_TIMING } from '../../constants/ble';
+import { BLE_CONFIG, FEATURE_FLAGS } from '../../config/project';
 import {
     createBLEZipDeploymentPackets,
     generateBLEDeploymentBundle,
@@ -41,7 +41,7 @@ async function sendPacketWithAck(
     label: string,
     timeoutMs: number,
     addLog: (level: DeploymentLogEntry['level'], message: string) => void,
-    retries: number = BLE_TIMING.ACK_RETRY_COUNT
+    retries: number = BLE_CONFIG.timing.ackRetryCount
 ): Promise<{ mode: 'with-response'; ack: any }> {
     const packetBytes = new TextEncoder().encode(JSON.stringify(packet));
     let lastError: unknown = null;
@@ -100,7 +100,7 @@ async function setupAckNotifications(
     let notifyCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
     try {
-        notifyCharacteristic = await service.getCharacteristic(BLE_CMS_UUIDS.ACK_CHARACTERISTIC);
+        notifyCharacteristic = await service.getCharacteristic(BLE_CONFIG.cms.ACK_CHARACTERISTIC);
     } catch {
         // Fallback handled below.
     }
@@ -144,7 +144,7 @@ async function setupAckNotifications(
     notifyCharacteristic.addEventListener('characteristicvaluechanged', onAck);
 
     return {
-        waitForAck: (matcher: AckMatcher, label: string, timeoutMs = BLE_TIMING.ACK_TIMEOUT_MS) => new Promise((resolve, reject) => {
+        waitForAck: (matcher: AckMatcher, label: string, timeoutMs = BLE_CONFIG.timing.ackTimeoutMs) => new Promise((resolve, reject) => {
             const timerId = setTimeout(() => {
                 const waiterIndex = waiters.findIndex((item) => item.timerId === timerId);
                 if (waiterIndex >= 0) {
@@ -282,7 +282,7 @@ export default function BLEMdal({
             // Request a device - this opens the system picker
             const device = await bluetooth.requestDevice({
                 acceptAllDevices: true,
-                optionalServices: ['battery_service', BLE_CMS_UUIDS.SERVICE],
+                optionalServices: ['battery_service', BLE_CONFIG.cms.SERVICE],
             });
 
             if (!device) {
@@ -384,7 +384,9 @@ export default function BLEMdal({
 
         try {
             setError(null);
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_LIMITS.MODAL_PACKET_CHUNK_SIZE);
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_CONFIG.limits.modalPacketChunkSize, {
+                ackEnabled: BLE_CONFIG.waitForAckOnChunks,
+            });
             downloadBundle(bundle.blob, bundle.fileName);
             addLog('info', `Deployment zip downloaded: ${bundle.fileName}`);
         } catch (err: any) {
@@ -424,8 +426,8 @@ export default function BLEMdal({
 
             let characteristic = writeCharacteristic;
             if (!characteristic) {
-                const service = await server.getPrimaryService(BLE_CMS_UUIDS.SERVICE);
-                characteristic = await service.getCharacteristic(BLE_CMS_UUIDS.RX_CHARACTERISTIC);
+                const service = await server.getPrimaryService(BLE_CONFIG.cms.SERVICE);
+                characteristic = await service.getCharacteristic(BLE_CONFIG.cms.RX_CHARACTERISTIC);
                 setWriteCharacteristic(characteristic);
             }
 
@@ -433,18 +435,21 @@ export default function BLEMdal({
                 throw new Error('No writable BLE characteristic available');
             }
 
-            const service = await server.getPrimaryService(BLE_CMS_UUIDS.SERVICE);
+            const service = await server.getPrimaryService(BLE_CONFIG.cms.SERVICE);
             try {
                 ackChannel = await setupAckNotifications(service, characteristic);
                 protocolAckEnabled = true;
-                addLog('info', 'Protocol ACK channel enabled');
+                addLog('info', 'Protocol ACK channel enabled for start/commit');
             } catch (ackSetupError: any) {
                 protocolAckEnabled = false;
                 addLog('warn', `Protocol ACK unavailable (${ackSetupError?.message || 'unknown'}), using GATT sequential mode`);
             }
 
             addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_LIMITS.MODAL_PACKET_CHUNK_SIZE);
+            const chunkAckEnabled = FEATURE_FLAGS.enableProtocolAck && BLE_CONFIG.waitForAckOnChunks;
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_CONFIG.limits.modalPacketChunkSize, {
+                ackEnabled: protocolAckEnabled && chunkAckEnabled,
+            });
             const packets = createBLEZipDeploymentPackets(bundle);
             setDeployTotalChunks(packets.chunks.length);
 
@@ -464,7 +469,7 @@ export default function BLEMdal({
                             return cmd === 'zip_start_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_start' || packet === 'start' || packet === ''));
                         },
                         'zip_start',
-                        BLE_TIMING.ACK_TIMEOUT_MS,
+                        BLE_CONFIG.timing.ackTimeoutMs,
                         addLog,
                         0
                     );
@@ -492,7 +497,9 @@ export default function BLEMdal({
             for (let index = 0; index < packets.chunks.length; index += 1) {
                 const chunkPacket = packets.chunks[index];
                 const expectedIndex = index;
-                if (protocolAckEnabled && ackChannel) {
+                    let chunkWasAcked = false;
+                // Only wait for chunk ACK if both protocol is enabled AND the config flag allows it
+                if (protocolAckEnabled && ackChannel && chunkAckEnabled) {
                     try {
                         const chunkResponse = await sendPacketWithAck(
                             characteristic,
@@ -514,7 +521,7 @@ export default function BLEMdal({
                                 return false;
                             },
                             `zip_chunk[${index}]`,
-                            BLE_TIMING.ACK_TIMEOUT_MS,
+                            BLE_CONFIG.timing.ackTimeoutMs,
                             addLog
                         );
 
@@ -523,6 +530,8 @@ export default function BLEMdal({
                         if (!isAckSuccessful(chunkAck)) {
                             throw new Error(`Device rejected chunk ${index + 1}: ${JSON.stringify(chunkAck)}`);
                         }
+
+                        chunkWasAcked = true;
                     } catch (chunkAckError) {
                         if (isAckTimeoutError(chunkAckError, `zip_chunk[${index}]`)) {
                             protocolAckEnabled = false;
@@ -539,11 +548,11 @@ export default function BLEMdal({
                 setDeployCurrentChunk(index + 1);
 
                 if ((index + 1) % 10 === 0 || index === packets.chunks.length - 1) {
-                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent and ACKed`);
+                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent${chunkWasAcked ? ' and ACKed' : ''}`);
                 }
 
                 if (index < packets.chunks.length - 1) {
-                    await new Promise((resolve) => setTimeout(resolve, BLE_TIMING.INTER_CHUNK_DELAY_MS));
+                    await new Promise((resolve) => setTimeout(resolve, BLE_CONFIG.timing.interChunkDelayMs));
                 }
             }
 
@@ -560,7 +569,7 @@ export default function BLEMdal({
                             return cmd === 'zip_commit_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
                         },
                         'zip_commit',
-                        BLE_TIMING.COMMIT_ACK_TIMEOUT_MS,
+                        BLE_CONFIG.timing.commitAckTimeoutMs,
                         addLog,
                         0
                     );
@@ -595,7 +604,7 @@ export default function BLEMdal({
                     const commitStatus = await ackChannel.waitForAck(
                         (ack) => String(ack?.cmd || '').toLowerCase() === 'zip_commit_status',
                         'zip_commit_status',
-                        BLE_TIMING.COMMIT_ACK_TIMEOUT_MS
+                        BLE_CONFIG.timing.commitAckTimeoutMs
                     );
                     addLog('info', `Deployment status received: ${JSON.stringify(commitStatus)}`);
                     setIsDeploying(false);
@@ -612,7 +621,7 @@ export default function BLEMdal({
 
             setTimeout(() => {
                 onClose();
-            }, BLE_TIMING.DEPLOY_DIALOG_CLOSE_DELAY_MS);
+            }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
         } catch (err: any) {
             console.error('[BLE] Deploy error:', err);
             setIsDeploying(false);
@@ -632,6 +641,9 @@ export default function BLEMdal({
             onClose();
         }
     };
+
+    const deployPercent = deployTotalChunks > 0 ? Math.round((deployCurrentChunk / deployTotalChunks) * 100) : 0;
+    const showFlashingCompletion = isDeploying && deployPercent >= 100;
 
     if (!isOpen) return null;
 
@@ -722,17 +734,22 @@ export default function BLEMdal({
                                     <div className="ble-progress-header">
                                         <span className="ble-progress-phase">{deployPhase}</span>
                                         <span className="ble-progress-percent">
-                                            {deployTotalChunks > 0 ? Math.round((deployCurrentChunk / deployTotalChunks) * 100) : 0}%
+                                            {deployPercent}%
                                         </span>
                                     </div>
                                     <div className="ble-progress-bar">
                                         <div
                                             className="ble-progress-fill"
                                             style={{
-                                                width: `${deployTotalChunks > 0 ? Math.round((deployCurrentChunk / deployTotalChunks) * 100) : 0}%`,
+                                                width: `${deployPercent}%`,
                                             }}
                                         ></div>
                                     </div>
+                                    {showFlashingCompletion && (
+                                        <div className="ble-complete-flash" role="status" aria-live="polite">
+                                            Deployment reached 100%. Flashing...
+                                        </div>
+                                    )}
                                     <div className="ble-progress-chunks">
                                         {deployTotalChunks > 0
                                             ? `Chunk ${deployCurrentChunk}/${deployTotalChunks}`

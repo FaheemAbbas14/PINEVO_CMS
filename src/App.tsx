@@ -12,7 +12,7 @@ import PINSimulator from './components/PINSimulator/PINSimulator';
 import './App.css';
 
 function AppContent() {
-  const { state, setProject, clearSession } = useCMS();
+  const { state, setProject, clearSession, loadProject } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showPINSimulator, setShowPINSimulator] = useState(false);
   const [zoom, setZoom] = useState(100);
@@ -61,6 +61,12 @@ function AppContent() {
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
               Create New Project
+            </button>
+            <button className="btn-start" onClick={loadProject} style={{ marginTop: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+              </svg>
+              Open Project
             </button>
             <button className="btn-start" onClick={() => setShowPINSimulator(true)} style={{ marginTop: '16px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#60a5fa' }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

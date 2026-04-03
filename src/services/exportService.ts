@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import type { CMSState, CanvasComponent, ProjectType, Screen } from '../types';
+import { BLE_CONFIG } from '../config/project';
 import {
   FLEX_CANVAS_HEIGHT,
   FLEX_CANVAS_WIDTH,
@@ -33,6 +34,7 @@ interface JsonExportBundle {
 
 export interface UIDeployConfig {
   selectedType: DeployUIType;
+  ackEnabled: boolean;
   targetLfsDirectory: string;
   activeEntryPath: string;
   storage: {
@@ -66,10 +68,15 @@ export interface UIDeploymentBundle {
   manifest: UIDeployManifest;
 }
 
+interface BLEDeploymentOptions {
+  ackEnabled?: boolean;
+}
+
 export interface BLEZipStartPacket {
   cmd: 'zip_start';
   fileName: string;
   selectedType: DeployUIType;
+  protocolAckEnabled: boolean;
   targetLfsDirectory: string;
   activeEntryPath: string;
   totalBytes: number;
@@ -551,11 +558,12 @@ function resolveHomeLandingEntryPath(
   return `${selectedRoot}/${homeFileName}`;
 }
 
-function createDeployConfig(selectedType: DeployUIType, activeEntryPath: string): UIDeployConfig {
+function createDeployConfig(selectedType: DeployUIType, activeEntryPath: string, ackEnabled: boolean): UIDeployConfig {
   const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
 
   return {
     selectedType,
+    ackEnabled,
     targetLfsDirectory: `/lfs/ui/${selectedType}`,
     activeEntryPath,
     storage: {
@@ -674,7 +682,8 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
 export async function generateBLEDeploymentBundle(
   state: CMSState,
   selectedType: DeployUIType = 'html',
-  chunkSize = 244
+  chunkSize = 244,
+  options: BLEDeploymentOptions = {}
 ): Promise<UIDeploymentBundle> {
   const zip = new JSZip();
   const configFolder = zip.folder('config');
@@ -686,7 +695,8 @@ export async function generateBLEDeploymentBundle(
   const selectedFolder = zip.folder(selectedFolderPath);
   const screenFileNames = buildScreenFileMap(state.screens, selectedType);
   const activeEntryPath = resolveHomeLandingEntryPath(state, selectedType, screenFileNames);
-  const config = createDeployConfig(selectedType, activeEntryPath);
+  const ackEnabled = options.ackEnabled ?? BLE_CONFIG.waitForAckOnChunks;
+  const config = createDeployConfig(selectedType, activeEntryPath, ackEnabled);
 
   if (!selectedFolder || !configFolder) {
     throw new Error('Failed to create deployment zip folders.');
@@ -770,6 +780,7 @@ export function createBLEZipDeploymentPackets(bundle: UIDeploymentBundle): BLEZi
       cmd: 'zip_start',
       fileName: bundle.fileName,
       selectedType: bundle.config.selectedType,
+      protocolAckEnabled: bundle.config.ackEnabled,
       targetLfsDirectory: bundle.config.targetLfsDirectory,
       activeEntryPath: bundle.config.activeEntryPath,
       totalBytes: bundle.bytes.byteLength,

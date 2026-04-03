@@ -34,9 +34,11 @@ Use the Export button in the top bar to choose the output format.
 - CMS also provides a deployment bundle generator that creates one zip containing only the selected UI type (`ui/html/` or `ui/json/`), plus `config/ui_config.json` and `config/manifest.json` for device-side routing and file indexing.
 - Deployment config is designed for LittleFS storage (`/lfs/ui`) so firmware can load UI files directly from LFS instead of a static data folder.
 - Deployment metadata includes selected type, target LFS directory (`/lfs/ui/html` or `/lfs/ui/json`), and active entry path so firmware can write and load from the correct location.
+- Deployment config (`config/ui_config.json`) now also includes `ackEnabled` so device-side logic can see whether CMS is running with ACK-wait flow enabled for chunk sends.
 - If a screen named `Home` exists, deployment sets it as the landing entry (`ui/html/Home.html` or `ui/json/Home.json`). If no Home screen exists, deployment falls back to `ui/html/index.html` (HTML) or `ui/json/project.json` (JSON).
 - BLE deployment now runs end-to-end from CMS state: build selected-type zip bundle, send `zip_start` packet with device routing metadata, stream `zip_chunk` packets, then send `zip_commit`.
 - BLE modal provides a manual "Download ZIP" action so you can inspect and verify the exact deployment bundle before sending.
+- BLE modal flashes a completion message when progress reaches 100% and keeps it visible until the deployment dialog closes.
 - BLE modal includes deployment progress and log output (phase, chunk counters, and send status) to help debug transfer issues.
 - Deployment packets are sent in strict sequence using `writeValueWithResponse`, so each packet is acknowledged at GATT level before the next packet is sent.
 - CMS now also waits for firmware protocol-level ACK notifications (`zip_start_ack`, `zip_chunk_ack`, `zip_commit_ack` or compatible `zip_ack`) before sending the next packet.
