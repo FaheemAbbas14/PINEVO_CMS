@@ -141,7 +141,7 @@ export const FEATURE_FLAGS = {
     // Enable BLE deployment workflow.
     enableBleDeployment: true,
     // Enable protocol-level ACK waiting.
-    enableProtocolAck: true,
+    enableProtocolAck: false,
     // Enable sandbox mode for testing.
     enableSandboxMode: true,
     // Enable preview mode for screen interactions.

@@ -31,6 +31,8 @@ Use the Export button in the top bar to choose the output format.
 - JSON export downloads a zip archive with a `json/` folder containing `project.json` plus one JSON file per screen.
 - JSON per-screen exports also include `json/assets/` so screen JSON files reference packaged assets and do not break on device.
 - Open Project accepts both the saved project format and the wrapped JSON export format.
+- Hardware-button configuration now exposes two mutually exclusive options per button: navigate to a screen or send a predefined action (`text`, `number`, or `scan`). When one is selected, the other is exported as empty so device firmware receives an unambiguous mapping.
+- Hardware-button actions are now centralized in `src/config/actions.ts` and organized by type (input, device, app). This makes it easy to add new actions (e.g., `connect`, `disconnect`, `start_scanner`, `change_theme`) and fetch them from a server endpoint in the future.
 - CMS also provides a deployment bundle generator that creates one zip containing only the selected UI type (`ui/html/` or `ui/json/`), plus `config/ui_config.json` and `config/manifest.json` for device-side routing and file indexing.
 - Deployment config is designed for LittleFS storage (`/lfs/ui`) so firmware can load UI files directly from LFS instead of a static data folder.
 - Deployment metadata includes selected type, target LFS directory (`/lfs/ui/html` or `/lfs/ui/json`), and active entry path so firmware can write and load from the correct location.

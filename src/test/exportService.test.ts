@@ -133,10 +133,35 @@ describe('exportService', () => {
     expect(screenHtml).toContain('<label x=');
     expect(screenHtml).toContain('text="Courier"');
     expect(screenHtml).toContain('target="result"');
+    expect(screenHtml).toContain('<hardware_button key="enter" target="result" input_action="" command=""/>');
+    expect(screenHtml).toContain('<hardware_button key="backspace" target="" input_action="text" command=""/>');
     expect(screenHtml).toContain('<image x="12" y="10" width="80" height="36" src="https://example.com/logo.png"');
     expect(screenHtml).toContain('font_src=""');
     expect(screenHtml).not.toContain('<section class="canvas-shell">');
     expect(projectJson).toContain('"screenCount": 2');
+  });
+
+  it('normalizes hardware button exports so screen target and action are mutually exclusive', () => {
+    const output = generateJsonExport({
+      ...sampleState,
+      screens: [
+        {
+          ...sampleState.screens[0],
+          hardwareButtons: {
+            enter: { goToScreen: 'screen-2', inputAction: 'scan' },
+            backspace: { inputAction: 'text' },
+          },
+        },
+        sampleState.screens[1],
+      ],
+    });
+
+    const parsed = JSON.parse(output);
+
+    expect(parsed.state.screens[0].hardwareButtons.enter.goToScreen).toBe('screen-2');
+    expect(parsed.state.screens[0].hardwareButtons.enter.inputAction).toBeUndefined();
+    expect(parsed.state.screens[0].hardwareButtons.backspace.goToScreen).toBeUndefined();
+    expect(parsed.state.screens[0].hardwareButtons.backspace.inputAction).toBe('text');
   });
 
   it('escapes project names in exported screen html', async () => {

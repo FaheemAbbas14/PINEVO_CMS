@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './DeviceFrame.css';
 import { useCMS } from '../../context/AppContext';
+import { INPUT_ACTIONS } from '../../config/actions';
 
 interface Props {
   children: React.ReactNode;
@@ -82,12 +83,25 @@ export default function DeviceFrame({ children }: Props) {
     }
   };
 
-  const handleHardwareButtonChange = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction' | 'command', value: string) => {
+  const handleHardwareButtonChange = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction', value: string) => {
     if (!currentScreen) return;
     const currentConfig = hardwareButtons[buttonId] || {};
-    updateScreenHardwareButton(currentScreen.id, buttonId, {
+
+    const nextConfig = {
       ...currentConfig,
-      [field]: value || undefined
+      [field]: value || undefined,
+    };
+
+    if (field === 'goToScreen' && value) {
+      nextConfig.inputAction = undefined;
+    }
+
+    if (field === 'inputAction' && value) {
+      nextConfig.goToScreen = undefined;
+    }
+
+    updateScreenHardwareButton(currentScreen.id, buttonId, {
+      ...nextConfig,
     });
   };
 
@@ -250,13 +264,14 @@ export default function DeviceFrame({ children }: Props) {
           <span style={{ fontWeight: 600, fontSize: '12px', textTransform: 'capitalize' }}>
             {selectedHardwareButton.replace('_', ' ')} Button
           </span>
+          <span style={{ fontSize: '11px', color: '#64748b' }}>Choose one interaction:</span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <select
               value={hardwareButtons[selectedHardwareButton]?.goToScreen || ''}
               onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'goToScreen', e.target.value)}
               style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
             >
-              <option value="">Go to Screen...</option>
+              <option value="">Navigate to screen...</option>
               {state.screens.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
@@ -266,18 +281,11 @@ export default function DeviceFrame({ children }: Props) {
               onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'inputAction', e.target.value)}
               style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
             >
-              <option value="">Take as Input...</option>
-              <option value="text">Text Input</option>
-              <option value="number">Number Input</option>
-              <option value="scan">QR/NFC Scan</option>
+              <option value="">Select action...</option>
+              {INPUT_ACTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
-            <input
-              type="text"
-              placeholder="Add command..."
-              value={hardwareButtons[selectedHardwareButton]?.command || ''}
-              onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'command', e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px', width: '100px' }}
-            />
           </div>
         </div>
       )}

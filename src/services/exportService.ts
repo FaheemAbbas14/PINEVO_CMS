@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import type { CMSState, CanvasComponent, ProjectType, Screen } from '../types';
+import type { CMSState, CanvasComponent, HardwareButtonConfig, ProjectType, Screen } from '../types';
 import { BLE_CONFIG } from '../config/project';
 import {
   FLEX_CANVAS_HEIGHT,
@@ -114,16 +114,59 @@ interface EmbeddedAssetRegistry {
 
 function createExportPayload(state: CMSState): ExportPayload {
   const componentCount = state.screens.reduce((total, screen) => total + screen.components.length, 0);
+  const screens = state.screens.map(normalizeScreenHardwareButtons);
 
   return {
     meta: {
       app: 'PINEVO CMS',
       version: 1,
       exportedAt: new Date().toISOString(),
-      screenCount: state.screens.length,
+      screenCount: screens.length,
       componentCount,
     },
-    state,
+    state: {
+      ...state,
+      screens,
+    },
+  };
+}
+
+function normalizeHardwareButtonConfig(config: HardwareButtonConfig | undefined): HardwareButtonConfig | undefined {
+  if (!config) {
+    return undefined;
+  }
+
+  if (config.goToScreen) {
+    return {
+      ...config,
+      inputAction: undefined,
+    };
+  }
+
+  if (config.inputAction) {
+    return {
+      ...config,
+      goToScreen: undefined,
+    };
+  }
+
+  return {
+    ...config,
+  };
+}
+
+function normalizeScreenHardwareButtons(screen: Screen): Screen {
+  if (!screen.hardwareButtons) {
+    return screen;
+  }
+
+  const hardwareButtons = Object.fromEntries(
+    Object.entries(screen.hardwareButtons).map(([buttonId, config]) => [buttonId, normalizeHardwareButtonConfig(config)])
+  );
+
+  return {
+    ...screen,
+    hardwareButtons,
   };
 }
 
@@ -451,7 +494,8 @@ function renderHardwareMappings(screen: Screen, targetByScreenId: Map<string, st
   }
 
   return configured
-    .map(([buttonId, config]) => {
+    .map(([buttonId, rawConfig]) => {
+      const config = normalizeHardwareButtonConfig(rawConfig);
       const target = config?.goToScreen ? targetByScreenId.get(config.goToScreen) || '' : '';
       return buildTag('hardware_button', [
         ['key', buttonId],
@@ -470,15 +514,16 @@ function generateScreenHtml(
   embeddedAssetRefs: Map<string, string>
 ) {
   const canvasSize = getCanvasSize(state.project?.type);
-  const screenName = sanitizeIdentifier(screen.name);
-  const components = screen.components
+  const normalizedScreen = normalizeScreenHardwareButtons(screen);
+  const screenName = sanitizeIdentifier(normalizedScreen.name);
+  const components = normalizedScreen.components
     .map((component, index) => renderFirmwareComponent(component, index, targetByScreenId, embeddedAssetRefs))
     .filter(Boolean)
     .join('\n');
-  const hardwareMappings = renderHardwareMappings(screen, targetByScreenId);
+  const hardwareMappings = renderHardwareMappings(normalizedScreen, targetByScreenId);
   const sections = [components, hardwareMappings].filter(Boolean).join('\n');
 
-  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" bg_image_src="" id="${escapeAttr(screen.id)}">\n${sections}\n</screen>\n`;
+  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
 }
 
 function generateIndexHtml(state: CMSState, screenFileNames: Map<string, string>) {
@@ -589,6 +634,7 @@ function generateScreenJsonExport(
   embeddedAssetRefs: Map<string, string>
 ) {
   const canvasSize = getCanvasSize(state.project?.type);
+  const normalizedScreen = normalizeScreenHardwareButtons(screen);
   const components = screen.components.map((component) => ({
     ...component,
     imageUrl: resolveAssetReference(component.imageUrl, embeddedAssetRefs),
@@ -600,9 +646,9 @@ function generateScreenJsonExport(
     {
       project: state.project,
       screen: {
-        ...screen,
+        ...normalizedScreen,
         components,
-        target: targetByScreenId.get(screen.id) || sanitizeIdentifier(screen.name),
+        target: targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name),
       },
       canvas: canvasSize,
       exportedAt: new Date().toISOString(),

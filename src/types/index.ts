@@ -52,9 +52,12 @@ export interface CanvasComponent {
 // Hardware button configuration type
 export type HardwareButtonId = 'power' | 'vol_up' | 'vol_down' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '0' | 'star' | 'hash' | 'call' | 'end' | 'left_1' | 'left_2' | 'right_1' | 'right_2' | 'cancel' | 'enter' | 'backspace' | 'speaker' | 'menu';
 
+// Button action types include input collection, device operations, and app interactions
+export type HardwareButtonAction = 'text' | 'number' | 'scan' | 'connect' | 'disconnect' | 'start_scanner' | 'change_theme';
+
 export interface HardwareButtonConfig {
   goToScreen?: string;
-  inputAction?: string;
+  inputAction?: HardwareButtonAction;
   command?: string;
 }
 

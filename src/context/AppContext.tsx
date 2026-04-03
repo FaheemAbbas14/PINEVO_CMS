@@ -460,7 +460,13 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateScreenHardwareButton = useCallback((screenId: string, buttonId: HardwareButtonId, config: HardwareButtonConfig) => {
-    dispatch({ type: 'UPDATE_SCREEN_HARDWARE_BUTTON', payload: { screenId, buttonId, config } });
+    const normalizedConfig: HardwareButtonConfig = {
+      ...config,
+      goToScreen: config.inputAction ? undefined : config.goToScreen,
+      inputAction: config.goToScreen ? undefined : config.inputAction,
+    };
+
+    dispatch({ type: 'UPDATE_SCREEN_HARDWARE_BUTTON', payload: { screenId, buttonId, config: normalizedConfig } });
   }, []);
 
   const clearSession = useCallback(() => {
