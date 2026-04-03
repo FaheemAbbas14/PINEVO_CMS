@@ -246,13 +246,14 @@ describe('exportService', () => {
     expect(zip.file('ui/json/Home.json')).toBeTruthy();
     expect(zip.file('ui/html/index.html')).toBeFalsy();
     expect(zip.file('ui/html/Home.html')).toBeFalsy();
+    expect(zip.file('ui/html/project.json')).toBeFalsy();
 
     const config = JSON.parse(configRaw || '{}');
     const manifest = JSON.parse(manifestRaw || '{}');
 
     expect(config.selectedType).toBe('json');
     expect(config.targetLfsDirectory).toBe('/lfs/ui/json');
-    expect(config.activeEntryPath).toBe('ui/json/project.json');
+    expect(config.activeEntryPath).toBe('ui/json/Home.json');
     expect(config.storage.backend).toBe('lfs');
     expect(config.paths.selectedRoot).toBe('ui/json');
     expect(config.paths.selectedAssetsRoot).toBe('ui/json/assets');
@@ -273,7 +274,7 @@ describe('exportService', () => {
     expect(packets.start.fileName).toBe('warehouse_flow_deploy_bundle.zip');
     expect(packets.start.selectedType).toBe('html');
     expect(packets.start.targetLfsDirectory).toBe('/lfs/ui/html');
-    expect(packets.start.activeEntryPath).toBe('ui/html/index.html');
+    expect(packets.start.activeEntryPath).toBe('ui/html/Home.html');
     expect(packets.start.totalChunks).toBe(deployment.chunks.length);
 
     expect(packets.chunks.length).toBe(deployment.chunks.length);

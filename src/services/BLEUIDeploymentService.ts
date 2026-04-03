@@ -4,6 +4,7 @@
  */
 
 import type { Screen } from '../types';
+import { BLE_LIMITS, BLE_TIMING, BLE_UART_UUIDS } from '../constants/ble';
 
 // ============================================================================
 // Types
@@ -86,15 +87,8 @@ const DEFAULT_OPTIONS: DeploymentOptions = {
     mode: 'full',
     compress: true,
     compressThreshold: 512,
-    chunkDelay: 50,
+    chunkDelay: BLE_TIMING.DEFAULT_CHUNK_DELAY_MS,
     debugMode: false,
-};
-
-const UUIDS = {
-    TX_SERVICE: '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART TX
-    TX_CHARACTERISTIC: '6e400002-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART TX (write)
-    RX_SERVICE: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
-    RX_CHARACTERISTIC: '6e400003-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART RX (notify)
 };
 
 // ============================================================================
@@ -267,15 +261,15 @@ export class BLEUIDeploymentService {
             let rxCharacteristic: any;
 
             try {
-                const service = await server.getPrimaryService(UUIDS.TX_SERVICE);
-                txCharacteristic = await service.getCharacteristic(UUIDS.TX_CHARACTERISTIC);
-                rxCharacteristic = await service.getCharacteristic(UUIDS.RX_CHARACTERISTIC);
+                const service = await server.getPrimaryService(BLE_UART_UUIDS.TX_SERVICE);
+                txCharacteristic = await service.getCharacteristic(BLE_UART_UUIDS.TX_CHARACTERISTIC);
+                rxCharacteristic = await service.getCharacteristic(BLE_UART_UUIDS.RX_CHARACTERISTIC);
             } catch (e) {
                 // Service not found, will use fallback
                 this.log(onProgress, 'warn', 'UART service not found, using default');
             }
 
-            const mtu = server.device?.platformMTU || 20;
+            const mtu = server.device?.platformMTU || BLE_LIMITS.DEFAULT_MTU;
 
             this.connection = {
                 device,
@@ -361,7 +355,7 @@ export class BLEUIDeploymentService {
 
             // Phase 2: Create chunks
             const sessionId = generateSessionId();
-            const maxChunkSize = this.connection!.mtu - 20; // Reserve space for JSON overhead
+            const maxChunkSize = this.connection!.mtu - BLE_LIMITS.MTU_RESERVED_BYTES;
             const chunks = createChunks(payloadData, sessionId, maxChunkSize);
 
             progress.totalChunks = chunks.length;

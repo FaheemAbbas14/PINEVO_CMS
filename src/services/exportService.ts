@@ -530,9 +530,29 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-function createDeployConfig(selectedType: DeployUIType): UIDeployConfig {
+function resolveHomeLandingEntryPath(
+  state: CMSState,
+  selectedType: DeployUIType,
+  screenFileNames: Map<string, string>
+) {
+  const homeScreen = state.screens.find((screen) => screen.name.trim().toLowerCase() === 'home');
   const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
-  const activeEntryPath = selectedType === 'html' ? 'ui/html/index.html' : 'ui/json/project.json';
+  const defaultEntryPath = selectedType === 'html' ? `${selectedRoot}/index.html` : `${selectedRoot}/project.json`;
+
+  if (!homeScreen) {
+    return defaultEntryPath;
+  }
+
+  const homeFileName = screenFileNames.get(homeScreen.id);
+  if (!homeFileName) {
+    return defaultEntryPath;
+  }
+
+  return `${selectedRoot}/${homeFileName}`;
+}
+
+function createDeployConfig(selectedType: DeployUIType, activeEntryPath: string): UIDeployConfig {
+  const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
 
   return {
     selectedType,
@@ -665,7 +685,8 @@ export async function generateBLEDeploymentBundle(
   const selectedFolderPath = selectedType === 'html' ? 'ui/html' : 'ui/json';
   const selectedFolder = zip.folder(selectedFolderPath);
   const screenFileNames = buildScreenFileMap(state.screens, selectedType);
-  const config = createDeployConfig(selectedType);
+  const activeEntryPath = resolveHomeLandingEntryPath(state, selectedType, screenFileNames);
+  const config = createDeployConfig(selectedType, activeEntryPath);
 
   if (!selectedFolder || !configFolder) {
     throw new Error('Failed to create deployment zip folders.');
@@ -691,7 +712,6 @@ export async function generateBLEDeploymentBundle(
 
   if (selectedType === 'html') {
     addTextFile('ui/html/index.html', generateIndexHtml(state, screenFileNames));
-    addTextFile('ui/html/project.json', generateJsonExport(state));
   } else {
     addTextFile('ui/json/project.json', generateJsonExport(state));
   }

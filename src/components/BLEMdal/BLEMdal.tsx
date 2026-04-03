@@ -1,22 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import './BLEMdal.css';
 import { useCMS } from '../../context/AppContext';
+import { BLE_CMS_UUIDS, BLE_LIMITS, BLE_TIMING } from '../../constants/ble';
 import {
     createBLEZipDeploymentPackets,
     generateBLEDeploymentBundle,
     type DeployUIType,
 } from '../../services/exportService';
-
-const BLE_UUIDS = {
-    SERVICE: 'abcdef01-1234-5678-9abc-def012345678',
-    RX_CHARACTERISTIC: 'abcdef02-1234-5678-9abc-def012345678',
-    ACK_CHARACTERISTIC: 'abcdef03-1234-5678-9abc-def012345678',
-};
-
-const BLE_PACKET_CHUNK_SIZE = 120; // Keep base64+JSON packet size safely below BLE payload limit.
-const ACK_TIMEOUT_MS = 8000;
-const COMMIT_ACK_TIMEOUT_MS = 30000;
-const ACK_RETRY_COUNT = 2;
 
 type AckMatcher = (ack: any) => boolean;
 
@@ -51,7 +41,7 @@ async function sendPacketWithAck(
     label: string,
     timeoutMs: number,
     addLog: (level: DeploymentLogEntry['level'], message: string) => void,
-    retries = ACK_RETRY_COUNT
+    retries: number = BLE_TIMING.ACK_RETRY_COUNT
 ): Promise<{ mode: 'with-response'; ack: any }> {
     const packetBytes = new TextEncoder().encode(JSON.stringify(packet));
     let lastError: unknown = null;
@@ -110,7 +100,7 @@ async function setupAckNotifications(
     let notifyCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
 
     try {
-        notifyCharacteristic = await service.getCharacteristic(BLE_UUIDS.ACK_CHARACTERISTIC);
+        notifyCharacteristic = await service.getCharacteristic(BLE_CMS_UUIDS.ACK_CHARACTERISTIC);
     } catch {
         // Fallback handled below.
     }
@@ -154,7 +144,7 @@ async function setupAckNotifications(
     notifyCharacteristic.addEventListener('characteristicvaluechanged', onAck);
 
     return {
-        waitForAck: (matcher: AckMatcher, label: string, timeoutMs = ACK_TIMEOUT_MS) => new Promise((resolve, reject) => {
+        waitForAck: (matcher: AckMatcher, label: string, timeoutMs = BLE_TIMING.ACK_TIMEOUT_MS) => new Promise((resolve, reject) => {
             const timerId = setTimeout(() => {
                 const waiterIndex = waiters.findIndex((item) => item.timerId === timerId);
                 if (waiterIndex >= 0) {
@@ -292,7 +282,7 @@ export default function BLEMdal({
             // Request a device - this opens the system picker
             const device = await bluetooth.requestDevice({
                 acceptAllDevices: true,
-                optionalServices: ['battery_service', BLE_UUIDS.SERVICE],
+                optionalServices: ['battery_service', BLE_CMS_UUIDS.SERVICE],
             });
 
             if (!device) {
@@ -394,7 +384,7 @@ export default function BLEMdal({
 
         try {
             setError(null);
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_PACKET_CHUNK_SIZE);
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_LIMITS.MODAL_PACKET_CHUNK_SIZE);
             downloadBundle(bundle.blob, bundle.fileName);
             addLog('info', `Deployment zip downloaded: ${bundle.fileName}`);
         } catch (err: any) {
@@ -434,8 +424,8 @@ export default function BLEMdal({
 
             let characteristic = writeCharacteristic;
             if (!characteristic) {
-                const service = await server.getPrimaryService(BLE_UUIDS.SERVICE);
-                characteristic = await service.getCharacteristic(BLE_UUIDS.RX_CHARACTERISTIC);
+                const service = await server.getPrimaryService(BLE_CMS_UUIDS.SERVICE);
+                characteristic = await service.getCharacteristic(BLE_CMS_UUIDS.RX_CHARACTERISTIC);
                 setWriteCharacteristic(characteristic);
             }
 
@@ -443,7 +433,7 @@ export default function BLEMdal({
                 throw new Error('No writable BLE characteristic available');
             }
 
-            const service = await server.getPrimaryService(BLE_UUIDS.SERVICE);
+            const service = await server.getPrimaryService(BLE_CMS_UUIDS.SERVICE);
             try {
                 ackChannel = await setupAckNotifications(service, characteristic);
                 protocolAckEnabled = true;
@@ -454,7 +444,7 @@ export default function BLEMdal({
             }
 
             addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_PACKET_CHUNK_SIZE);
+            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_LIMITS.MODAL_PACKET_CHUNK_SIZE);
             const packets = createBLEZipDeploymentPackets(bundle);
             setDeployTotalChunks(packets.chunks.length);
 
@@ -474,7 +464,7 @@ export default function BLEMdal({
                             return cmd === 'zip_start_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_start' || packet === 'start' || packet === ''));
                         },
                         'zip_start',
-                        ACK_TIMEOUT_MS,
+                        BLE_TIMING.ACK_TIMEOUT_MS,
                         addLog,
                         0
                     );
@@ -524,7 +514,7 @@ export default function BLEMdal({
                                 return false;
                             },
                             `zip_chunk[${index}]`,
-                            ACK_TIMEOUT_MS,
+                            BLE_TIMING.ACK_TIMEOUT_MS,
                             addLog
                         );
 
@@ -553,7 +543,7 @@ export default function BLEMdal({
                 }
 
                 if (index < packets.chunks.length - 1) {
-                    await new Promise((resolve) => setTimeout(resolve, 15));
+                    await new Promise((resolve) => setTimeout(resolve, BLE_TIMING.INTER_CHUNK_DELAY_MS));
                 }
             }
 
@@ -570,7 +560,7 @@ export default function BLEMdal({
                             return cmd === 'zip_commit_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
                         },
                         'zip_commit',
-                        COMMIT_ACK_TIMEOUT_MS,
+                        BLE_TIMING.COMMIT_ACK_TIMEOUT_MS,
                         addLog,
                         0
                     );
@@ -581,7 +571,7 @@ export default function BLEMdal({
                         throw new Error(`Device rejected zip_commit: ${JSON.stringify(commitAck)}`);
                     }
 
-                    addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received, deploy completed.`);
+                    addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received.`);
                 } catch (commitAckError) {
                     if (isAckTimeoutError(commitAckError, 'zip_commit')) {
                         const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
@@ -596,17 +586,33 @@ export default function BLEMdal({
                 const mode = await writeTestPayload(characteristic, commitPacketBytes);
                 addLog('info', `Commit packet sent (${mode}), no protocol ACK mode.`);
             }
+
             setDeployPhase('complete');
 
-            // Give the peripheral a short window to flush final logs/state before disconnect.
-            await new Promise((resolve) => setTimeout(resolve, 250));
-
-            setIsDeploying(false);
-            setDeploySuccess(true);
+            // Wait for zip_commit_status ACK or timeout; close dialog either way
+            if (protocolAckEnabled && ackChannel) {
+                try {
+                    const commitStatus = await ackChannel.waitForAck(
+                        (ack) => String(ack?.cmd || '').toLowerCase() === 'zip_commit_status',
+                        'zip_commit_status',
+                        BLE_TIMING.COMMIT_ACK_TIMEOUT_MS
+                    );
+                    addLog('info', `Deployment status received: ${JSON.stringify(commitStatus)}`);
+                    setIsDeploying(false);
+                    setDeploySuccess(true);
+                } catch (statusError) {
+                    addLog('warn', `zip_commit_status timeout or error: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
+                    setIsDeploying(false);
+                    setDeploySuccess(true);
+                }
+            } else {
+                setIsDeploying(false);
+                setDeploySuccess(true);
+            }
 
             setTimeout(() => {
                 onClose();
-            }, 1500);
+            }, BLE_TIMING.DEPLOY_DIALOG_CLOSE_DELAY_MS);
         } catch (err: any) {
             console.error('[BLE] Deploy error:', err);
             setIsDeploying(false);
