@@ -35,8 +35,6 @@ export interface UIDeployConfig {
   selectedType: DeployUIType;
   targetLfsDirectory: string;
   activeEntryPath: string;
-  landingScreenId: string;
-  landingScreenName: string;
   storage: {
     backend: 'lfs';
     basePath: string;
@@ -74,8 +72,6 @@ export interface BLEZipStartPacket {
   selectedType: DeployUIType;
   targetLfsDirectory: string;
   activeEntryPath: string;
-  landingScreenId: string;
-  landingScreenName: string;
   totalBytes: number;
   totalChunks: number;
   chunkSize: number;
@@ -534,32 +530,14 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-function resolveLandingScreen(screens: Screen[]): Screen | null {
-  if (!screens.length) {
-    return null;
-  }
-
-  const homeScreen = screens.find((screen) => screen.name.trim().toLowerCase() === 'home');
-  return homeScreen || screens[0];
-}
-
-function createDeployConfig(
-  selectedType: DeployUIType,
-  screens: Screen[],
-  screenFileNames: Map<string, string>
-): UIDeployConfig {
+function createDeployConfig(selectedType: DeployUIType): UIDeployConfig {
   const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
-  const landingScreen = resolveLandingScreen(screens);
-  const fallbackEntry = selectedType === 'html' ? 'index.html' : 'project.json';
-  const landingEntryFile = landingScreen ? (screenFileNames.get(landingScreen.id) || fallbackEntry) : fallbackEntry;
-  const activeEntryPath = `${selectedRoot}/${landingEntryFile}`;
+  const activeEntryPath = selectedType === 'html' ? 'ui/html/index.html' : 'ui/json/project.json';
 
   return {
     selectedType,
     targetLfsDirectory: `/lfs/ui/${selectedType}`,
     activeEntryPath,
-    landingScreenId: landingScreen?.id || '',
-    landingScreenName: landingScreen?.name || '',
     storage: {
       backend: 'lfs',
       basePath: '/lfs/ui',
@@ -687,7 +665,7 @@ export async function generateBLEDeploymentBundle(
   const selectedFolderPath = selectedType === 'html' ? 'ui/html' : 'ui/json';
   const selectedFolder = zip.folder(selectedFolderPath);
   const screenFileNames = buildScreenFileMap(state.screens, selectedType);
-  const config = createDeployConfig(selectedType, state.screens, screenFileNames);
+  const config = createDeployConfig(selectedType);
 
   if (!selectedFolder || !configFolder) {
     throw new Error('Failed to create deployment zip folders.');
@@ -774,8 +752,6 @@ export function createBLEZipDeploymentPackets(bundle: UIDeploymentBundle): BLEZi
       selectedType: bundle.config.selectedType,
       targetLfsDirectory: bundle.config.targetLfsDirectory,
       activeEntryPath: bundle.config.activeEntryPath,
-      landingScreenId: bundle.config.landingScreenId,
-      landingScreenName: bundle.config.landingScreenName,
       totalBytes: bundle.bytes.byteLength,
       totalChunks: bundle.chunks.length,
       chunkSize: bundle.chunkSize,
