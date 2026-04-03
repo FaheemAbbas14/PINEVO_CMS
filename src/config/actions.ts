@@ -3,7 +3,7 @@
  * This can be easily populated from a server endpoint in the future.
  */
 
-export type ActionType = 'input' | 'device' | 'app';
+export type ActionType = 'device';
 
 export interface ActionDefinition {
   value: string;
@@ -12,31 +12,6 @@ export interface ActionDefinition {
   type: ActionType;
   icon?: string;
 }
-
-// ============================================================================
-// Input Actions - for hardware button input handling
-// ============================================================================
-
-export const INPUT_ACTIONS: ActionDefinition[] = [
-  {
-    value: 'text',
-    label: 'Text Input',
-    description: 'Capture text from hardware button input',
-    type: 'input',
-  },
-  {
-    value: 'number',
-    label: 'Number Input',
-    description: 'Capture numeric input from hardware button',
-    type: 'input',
-  },
-  {
-    value: 'scan',
-    label: 'QR/NFC Scan',
-    description: 'Trigger QR code or NFC scan',
-    type: 'input',
-  },
-];
 
 // ============================================================================
 // Device Actions - for hardware device operations
@@ -61,18 +36,11 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
     description: 'Start the hardware scanner',
     type: 'device',
   },
-];
-
-// ============================================================================
-// App Actions - for application-level operations
-// ============================================================================
-
-export const APP_ACTIONS: ActionDefinition[] = [
   {
     value: 'change_theme',
     label: 'Change Theme',
     description: 'Switch application theme',
-    type: 'app',
+    type: 'device',
   },
 ];
 
@@ -81,9 +49,7 @@ export const APP_ACTIONS: ActionDefinition[] = [
 // ============================================================================
 
 export const ALL_ACTIONS: ActionDefinition[] = [
-  ...INPUT_ACTIONS,
   ...DEVICE_ACTIONS,
-  ...APP_ACTIONS,
 ];
 
 // ============================================================================

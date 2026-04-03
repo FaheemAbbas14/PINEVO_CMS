@@ -660,16 +660,14 @@ function generateScreenJsonExport(
 
 export async function generateJsonScreensExport(state: CMSState): Promise<JsonExportBundle> {
   const zip = new JSZip();
-  const jsonFolder = zip.folder('json');
+  const uiFolder = zip.folder('ui');
   const screenFileNames = buildScreenFileMap(state.screens, 'json');
   const targetByScreenId = new Map(state.screens.map((screen) => [screen.id, sanitizeIdentifier(screen.name)]));
   const assetRegistry = collectEmbeddedAssets(state.screens);
 
-  if (!jsonFolder) {
-    throw new Error('Failed to create json export folder.');
+  if (!uiFolder) {
+    throw new Error('Failed to create ui export folder.');
   }
-
-  jsonFolder.file('project.json', generateJsonExport(state));
 
   state.screens.forEach((screen) => {
     const fileName = screenFileNames.get(screen.id);
@@ -677,11 +675,11 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
       return;
     }
 
-    jsonFolder.file(fileName, generateScreenJsonExport(state, screen, targetByScreenId, assetRegistry.references));
+    uiFolder.file(fileName, generateScreenJsonExport(state, screen, targetByScreenId, assetRegistry.references));
   });
 
   assetRegistry.assets.forEach((asset) => {
-    jsonFolder.file(asset.relativePath, asset.bytes);
+    uiFolder.file(asset.relativePath, asset.bytes);
   });
 
   const blob = await zip.generateAsync({ type: 'blob' });
@@ -768,8 +766,6 @@ export async function generateBLEDeploymentBundle(
 
   if (selectedType === 'html') {
     addTextFile('ui/html/index.html', generateIndexHtml(state, screenFileNames));
-  } else {
-    addTextFile('ui/json/project.json', generateJsonExport(state));
   }
 
   state.screens.forEach((screen) => {

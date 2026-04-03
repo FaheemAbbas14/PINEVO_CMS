@@ -204,12 +204,13 @@ describe('exportService', () => {
   it('builds json export zip with one json file per screen using original names', async () => {
     const output = await generateJsonScreensExport(sampleState);
     const zip = await JSZip.loadAsync(output.blob);
-    const homeJson = await zip.file('json/Home.json')?.async('string');
-    const resultJson = await zip.file('json/Result.json')?.async('string');
+    const homeJson = await zip.file('ui/Home.json')?.async('string');
+    const resultJson = await zip.file('ui/Result.json')?.async('string');
 
     expect(output.fileName).toBe('warehouse_flow_screens_json.zip');
     expect(homeJson).toContain('"name": "Home"');
     expect(resultJson).toContain('"name": "Result"');
+    expect(zip.file('ui/project.json')).toBeFalsy();
   });
 
   it('exports embedded assets in both html and json bundles', async () => {
@@ -246,15 +247,15 @@ describe('exportService', () => {
 
     const jsonBundle = await generateJsonScreensExport(withEmbeddedAssets);
     const jsonZip = await JSZip.loadAsync(jsonBundle.blob);
-    const jsonScreen = await jsonZip.file('json/Home.json')?.async('string');
+    const jsonScreen = await jsonZip.file('ui/Home.json')?.async('string');
 
     expect(htmlZip.file('ui/assets/image_1.png')).toBeTruthy();
     expect(htmlZip.file('ui/assets/audio_2.wav')).toBeTruthy();
     expect(htmlScreen).toContain('src="assets/image_1.png"');
     expect(htmlScreen).toContain('audio_src="assets/audio_2.wav"');
 
-    expect(jsonZip.file('json/assets/image_1.png')).toBeTruthy();
-    expect(jsonZip.file('json/assets/audio_2.wav')).toBeTruthy();
+    expect(jsonZip.file('ui/assets/image_1.png')).toBeTruthy();
+    expect(jsonZip.file('ui/assets/audio_2.wav')).toBeTruthy();
     expect(jsonScreen).toContain('"imageUrl": "assets/image_1.png"');
     expect(jsonScreen).toContain('"buttonSound": "assets/audio_2.wav"');
   });
@@ -267,7 +268,7 @@ describe('exportService', () => {
 
     expect(configRaw).toBeTruthy();
     expect(manifestRaw).toBeTruthy();
-    expect(zip.file('ui/json/project.json')).toBeTruthy();
+    expect(zip.file('ui/json/project.json')).toBeFalsy();
     expect(zip.file('ui/json/Home.json')).toBeTruthy();
     expect(zip.file('ui/html/index.html')).toBeFalsy();
     expect(zip.file('ui/html/Home.html')).toBeFalsy();
@@ -284,7 +285,8 @@ describe('exportService', () => {
     expect(config.paths.selectedRoot).toBe('ui/json');
     expect(config.paths.selectedAssetsRoot).toBe('ui/json/assets');
     expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/html/index.html')).toBe(false);
-    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/project.json')).toBe(true);
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/project.json')).toBe(false);
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/Home.json')).toBe(true);
 
     expect(deployment.fileName).toBe('warehouse_flow_deploy_bundle.zip');
     expect(deployment.chunkSize).toBe(244);

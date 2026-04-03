@@ -227,7 +227,7 @@ export default function BLEMdal({
     const [isDeploying, setIsDeploying] = useState(false);
     const [deploySuccess, setDeploySuccess] = useState(false);
     const [deployType, setDeployType] = useState<DeployUIType>(selectedDeployType);
-    const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'committing' | 'complete'>('idle');
+    const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'flashing' | 'complete'>('idle');
     const [deployCurrentChunk, setDeployCurrentChunk] = useState(0);
     const [deployTotalChunks, setDeployTotalChunks] = useState(0);
 
@@ -556,7 +556,7 @@ export default function BLEMdal({
                 }
             }
 
-            setDeployPhase('committing');
+            setDeployPhase('flashing');
             if (protocolAckEnabled && ackChannel) {
                 try {
                     const commitResponse = await sendPacketWithAck(
