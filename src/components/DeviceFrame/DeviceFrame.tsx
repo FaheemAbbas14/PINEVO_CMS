@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './DeviceFrame.css';
 import { useCMS } from '../../context/AppContext';
-import { INPUT_ACTIONS } from '../../config/actions';
+import { DEVICE_ACTIONS } from '../../config/actions';
 
 interface Props {
   children: React.ReactNode;
@@ -282,7 +282,7 @@ export default function DeviceFrame({ children }: Props) {
               style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
             >
               <option value="">Select action...</option>
-              {INPUT_ACTIONS.map((option) => (
+              {DEVICE_ACTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
