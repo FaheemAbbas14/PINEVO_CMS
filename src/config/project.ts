@@ -142,6 +142,10 @@ export const FEATURE_FLAGS = {
     enableBleDeployment: true,
     // Enable protocol-level ACK waiting.
     enableProtocolAck: false,
+    // Enable HTML UI export/deployment format.
+    enableHtmlUiFormat: true,
+    // Enable JSON UI export/deployment format.
+    enableJsonUiFormat: true,
     // Enable sandbox mode for testing.
     enableSandboxMode: true,
     // Enable preview mode for screen interactions.

@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import type { CMSState, CanvasComponent, HardwareButtonConfig, ProjectType, Screen } from '../types';
-import { BLE_CONFIG } from '../config/project';
+import { BLE_CONFIG, FEATURE_FLAGS } from '../config/project';
 import {
   FLEX_CANVAS_HEIGHT,
   FLEX_CANVAS_WIDTH,
@@ -349,6 +349,33 @@ function sanitizeIdentifier(value: string) {
     .replaceAll(/^_+|_+$/g, '') || 'screen';
 }
 
+function isDigitHardwareButtonKey(value: string) {
+  return /^[0-9]$/.test(value);
+}
+
+function buildScreenTargetMap(screens: Screen[]) {
+  const usedTargets = new Set<string>();
+  const targetByScreenId = new Map<string, string>();
+
+  screens.forEach((screen, index) => {
+    const explicitTarget = (screen as Screen & { target?: string }).target;
+    const fallback = `screen_${index + 1}`;
+    const baseTarget = sanitizeIdentifier(explicitTarget || screen.name || fallback);
+
+    let candidate = baseTarget;
+    let suffix = 2;
+    while (usedTargets.has(candidate)) {
+      candidate = `${baseTarget}_${suffix}`;
+      suffix += 1;
+    }
+
+    usedTargets.add(candidate);
+    targetByScreenId.set(screen.id, candidate);
+  });
+
+  return targetByScreenId;
+}
+
 function extractNumericKey(label: string | undefined) {
   if (!label) {
     return '';
@@ -375,6 +402,143 @@ function resolveAssetReference(value: string | undefined, embeddedAssetRefs: Map
   }
 
   return embeddedAssetRefs.get(safeValue) || safeValue;
+}
+
+function normalizeExportInputAction(action: string | undefined) {
+  if (!action) {
+    return '';
+  }
+
+  // Firmware JSON flow expects startscanner (without underscore).
+  if (action === 'start_scanner') {
+    return 'startscanner';
+  }
+
+  return action;
+}
+
+function buildFirmwareJsonComponent(
+  component: CanvasComponent,
+  index: number,
+  targetByScreenId: Map<string, string>,
+  embeddedAssetRefs: Map<string, string>
+) {
+  if (component.type === 'text') {
+    return {
+      type: 'label',
+      x: component.x,
+      y: component.y,
+      font: component.fontSize || 14,
+      color: component.color || '#1a1a2e',
+      font_src: '',
+      text: component.text || '',
+    };
+  }
+
+  if (component.type === 'button') {
+    const target = component.goToScreen ? targetByScreenId.get(component.goToScreen) || '' : '';
+    const derivedKey = extractNumericKey(component.text);
+    const normalizedKey = derivedKey || String(index + 1);
+
+    return {
+      type: 'button',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      bg_color: component.bgColor || '#4f46e5',
+      text_color: component.color || '#ffffff',
+      font: component.fontSize || 14,
+      font_src: '',
+      tag: normalizedKey,
+      key: normalizedKey,
+      label: component.text || 'Button',
+      target,
+      flat: true,
+      function: component.function || 'none',
+      api_call: component.apiCall || '',
+      command: component.command || '',
+      audio_src: resolveAssetReference(component.buttonSound, embeddedAssetRefs),
+    };
+  }
+
+  if (component.type === 'image') {
+    return {
+      type: 'image',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      src: resolveAssetReference(component.imageUrl, embeddedAssetRefs),
+      fit: 'cover',
+    };
+  }
+
+  if (component.type === 'text_input') {
+    return {
+      type: 'input',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      bg_color: component.bgColor || '#ffffff',
+      text_color: component.color || '#1a1a2e',
+      font: component.fontSize || 14,
+      font_src: '',
+      text: component.text || '',
+      placeholder: component.placeholder || '',
+      border_radius: component.borderRadius || 8,
+    };
+  }
+
+  if (component.type === 'audio') {
+    return {
+      type: 'audio',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      src: resolveAssetReference(component.audioUrl, embeddedAssetRefs),
+      label: component.text || 'Audio',
+      autoplay: false,
+      loop: false,
+    };
+  }
+
+  if (component.type === 'api') {
+    return {
+      type: 'api',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      method: component.httpMethod || 'GET',
+      url: component.apiUrl || '',
+      headers: component.headers || '',
+      body: component.requestBody || '',
+      trigger: 'tap',
+    };
+  }
+
+  if (component.type === 'command') {
+    return {
+      type: 'command',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      value: component.command || '',
+      trigger: 'tap',
+    };
+  }
+
+  return {
+    type: component.type,
+    x: component.x,
+    y: component.y,
+    width: component.width,
+    height: component.height,
+  };
 }
 
 function renderFirmwareComponent(
@@ -500,7 +664,7 @@ function renderHardwareMappings(screen: Screen, targetByScreenId: Map<string, st
       return buildTag('hardware_button', [
         ['key', buttonId],
         ['target', target],
-        ['input_action', config?.inputAction || ''],
+        ['input_action', normalizeExportInputAction(config?.inputAction)],
         ['command', config?.command || ''],
       ]);
     })
@@ -589,7 +753,10 @@ function resolveHomeLandingEntryPath(
 ) {
   const homeScreen = state.screens.find((screen) => screen.name.trim().toLowerCase() === 'home');
   const selectedRoot = selectedType === 'html' ? 'ui/html' : 'ui/json';
-  const defaultEntryPath = selectedType === 'html' ? `${selectedRoot}/index.html` : `${selectedRoot}/project.json`;
+  const firstScreenFile = state.screens[0] ? screenFileNames.get(state.screens[0].id) : undefined;
+  const defaultEntryPath = selectedType === 'html'
+    ? `${selectedRoot}/index.html`
+    : `${selectedRoot}/${firstScreenFile || 'screen_1.json'}`;
 
   if (!homeScreen) {
     return defaultEntryPath;
@@ -628,30 +795,44 @@ function createDeployFileName(state: CMSState) {
 }
 
 function generateScreenJsonExport(
-  state: CMSState,
+  canvasSize: { width: number; height: number },
   screen: Screen,
   targetByScreenId: Map<string, string>,
   embeddedAssetRefs: Map<string, string>
 ) {
-  const canvasSize = getCanvasSize(state.project?.type);
   const normalizedScreen = normalizeScreenHardwareButtons(screen);
-  const components = screen.components.map((component) => ({
-    ...component,
-    imageUrl: resolveAssetReference(component.imageUrl, embeddedAssetRefs),
-    audioUrl: resolveAssetReference(component.audioUrl, embeddedAssetRefs),
-    buttonSound: resolveAssetReference(component.buttonSound, embeddedAssetRefs),
-  }));
+  const components = normalizedScreen.components.map((component, index) =>
+    buildFirmwareJsonComponent(component, index, targetByScreenId, embeddedAssetRefs)
+  );
+
+  const hardwareButtons =
+    Object.entries(normalizedScreen.hardwareButtons || {})
+      .filter(([buttonId]) => isDigitHardwareButtonKey(buttonId))
+      .map(([buttonId, config]) => {
+        const normalized = normalizeHardwareButtonConfig(config);
+        return {
+          key: buttonId,
+          target: normalized?.goToScreen ? targetByScreenId.get(normalized.goToScreen) || '' : '',
+          input_action: normalizeExportInputAction(normalized?.inputAction),
+          command: normalized?.command || '',
+        };
+      });
+
+  const screenTarget = targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name);
 
   return JSON.stringify(
     {
-      project: state.project,
       screen: {
-        ...normalizedScreen,
+        name: screenTarget,
+        bg_color: '#ffffff',
+        width: canvasSize.width,
+        height: canvasSize.height,
+        font_src: '',
+        bg_image_src: '',
+        id: normalizedScreen.id,
         components,
-        target: targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name),
+        hardware_buttons: hardwareButtons,
       },
-      canvas: canvasSize,
-      exportedAt: new Date().toISOString(),
     },
     null,
     2
@@ -660,26 +841,27 @@ function generateScreenJsonExport(
 
 export async function generateJsonScreensExport(state: CMSState): Promise<JsonExportBundle> {
   const zip = new JSZip();
-  const uiFolder = zip.folder('ui');
-  const screenFileNames = buildScreenFileMap(state.screens, 'json');
-  const targetByScreenId = new Map(state.screens.map((screen) => [screen.id, sanitizeIdentifier(screen.name)]));
+  const jsonFolder = zip.folder('ui/json');
+  const canvasSize = getCanvasSize(state.project?.type);
+  const targetByScreenId = buildScreenTargetMap(state.screens);
   const assetRegistry = collectEmbeddedAssets(state.screens);
 
-  if (!uiFolder) {
-    throw new Error('Failed to create ui export folder.');
+  if (!jsonFolder) {
+    throw new Error('Failed to create json export folder.');
   }
 
   state.screens.forEach((screen) => {
-    const fileName = screenFileNames.get(screen.id);
+    const target = targetByScreenId.get(screen.id);
+    const fileName = target ? `${target}.json` : undefined;
     if (!fileName) {
       return;
     }
 
-    uiFolder.file(fileName, generateScreenJsonExport(state, screen, targetByScreenId, assetRegistry.references));
+    jsonFolder.file(fileName, generateScreenJsonExport(canvasSize, screen, targetByScreenId, assetRegistry.references));
   });
 
   assetRegistry.assets.forEach((asset) => {
-    uiFolder.file(asset.relativePath, asset.bytes);
+    jsonFolder.file(asset.relativePath, asset.bytes);
   });
 
   const blob = await zip.generateAsync({ type: 'blob' });
@@ -693,7 +875,7 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   const zip = new JSZip();
   const uiFolder = zip.folder('ui');
   const screenFileNames = buildScreenFileMap(state.screens, 'html');
-  const targetByScreenId = new Map(state.screens.map((screen) => [screen.id, sanitizeIdentifier(screen.name)]));
+  const targetByScreenId = buildScreenTargetMap(state.screens);
   const assetRegistry = collectEmbeddedAssets(state.screens);
 
   if (!uiFolder) {
@@ -729,15 +911,29 @@ export async function generateBLEDeploymentBundle(
   chunkSize = 244,
   options: BLEDeploymentOptions = {}
 ): Promise<UIDeploymentBundle> {
+  if (selectedType === 'html' && !FEATURE_FLAGS.enableHtmlUiFormat) {
+    throw new Error('HTML deployment is disabled in configuration.');
+  }
+
+  if (selectedType === 'json' && !FEATURE_FLAGS.enableJsonUiFormat) {
+    throw new Error('JSON deployment is disabled in configuration.');
+  }
+
   const zip = new JSZip();
   const configFolder = zip.folder('config');
-  const targetByScreenId = new Map(state.screens.map((screen) => [screen.id, sanitizeIdentifier(screen.name)]));
+  const canvasSize = getCanvasSize(state.project?.type);
+  const targetByScreenId = buildScreenTargetMap(state.screens);
   const assetRegistry = collectEmbeddedAssets(state.screens);
   const fileEntries: UIDeployManifest['files'] = [];
 
   const selectedFolderPath = selectedType === 'html' ? 'ui/html' : 'ui/json';
   const selectedFolder = zip.folder(selectedFolderPath);
-  const screenFileNames = buildScreenFileMap(state.screens, selectedType);
+  const screenFileNames = selectedType === 'html'
+    ? buildScreenFileMap(state.screens, 'html')
+    : new Map(state.screens.map((screen) => {
+      const target = targetByScreenId.get(screen.id) || sanitizeIdentifier(screen.name);
+      return [screen.id, `${target}.json`];
+    }));
   const activeEntryPath = resolveHomeLandingEntryPath(state, selectedType, screenFileNames);
   const ackEnabled = options.ackEnabled ?? BLE_CONFIG.waitForAckOnChunks;
   const config = createDeployConfig(selectedType, activeEntryPath, ackEnabled);
@@ -782,7 +978,7 @@ export async function generateBLEDeploymentBundle(
     } else {
       addTextFile(
         `ui/json/${fileName}`,
-        generateScreenJsonExport(state, screen, targetByScreenId, assetRegistry.references)
+        generateScreenJsonExport(canvasSize, screen, targetByScreenId, assetRegistry.references)
       );
     }
   });

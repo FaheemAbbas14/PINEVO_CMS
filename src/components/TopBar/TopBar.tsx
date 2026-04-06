@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCMS } from '../../context/AppContext';
+import { FEATURE_FLAGS } from '../../config/project';
 import type { DeployUIType } from '../../services/exportService';
 import NewProjectModal from '../NewProjectModal/NewProjectModal';
 import BLEModal from '../BLEMdal/BLEMdal';
@@ -15,6 +16,14 @@ interface BLEDevice {
   rssi: number;
 }
 
+function getFirstEnabledDeployType(): DeployUIType {
+  if (FEATURE_FLAGS.enableHtmlUiFormat) {
+    return 'html';
+  }
+
+  return 'json';
+}
+
 export default function TopBar({ onOpenSimulator }: TopBarProps) {
   const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -23,7 +32,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
   const [editingScreenId, setEditingScreenId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  const [selectedDeployType, setSelectedDeployType] = useState<DeployUIType>('html');
+  const [selectedDeployType, setSelectedDeployType] = useState<DeployUIType>(getFirstEnabledDeployType());
 
   const handleBLEConnect = (device: BLEDevice) => {
     setBleDevice(device);
@@ -58,6 +67,8 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
       setEditName('');
     }
   };
+
+  const hasAnyExportFormat = FEATURE_FLAGS.enableHtmlUiFormat || FEATURE_FLAGS.enableJsonUiFormat;
 
   return (
     <>
@@ -175,6 +186,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                   onClick={() => setShowExportDropdown(!showExportDropdown)}
                   aria-label="Export options"
                   aria-expanded={showExportDropdown}
+                  disabled={!hasAnyExportFormat}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -189,20 +201,24 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                 {showExportDropdown && (
                   <div className="export-dropdown" role="menu">
                     <div className="export-dropdown-label">Select export format</div>
-                    <button className="export-option" onClick={() => { setSelectedDeployType('html'); void saveAsHtml(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as HTML">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
-                      HTML
-                    </button>
-                    <button className="export-option" onClick={() => { setSelectedDeployType('json'); void saveScreens(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as JSON">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
-                      JSON
-                    </button>
+                    {FEATURE_FLAGS.enableHtmlUiFormat && (
+                      <button className="export-option" onClick={() => { setSelectedDeployType('html'); void saveAsHtml(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as HTML">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        HTML
+                      </button>
+                    )}
+                    {FEATURE_FLAGS.enableJsonUiFormat && (
+                      <button className="export-option" onClick={() => { setSelectedDeployType('json'); void saveScreens(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as JSON">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                        JSON
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

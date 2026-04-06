@@ -24,27 +24,11 @@ npm run test:run
 
 Use the Export button in the top bar to choose the output format.
 
-- HTML export downloads a single zip archive. Inside it, the `ui/` folder contains `index.html`, one HTML file per screen, and `project.json` for the full exported state.
-- Embedded media assets (for example uploaded data-URL images/audio) are extracted into `assets/` inside the export folder and references in exported screen files are rewritten to those asset paths.
-- Each exported screen file now uses a firmware-friendly tag format, for example `<screen>`, `<label>`, `<button>`, `<image>`, `<input>`, `<audio>`, `<api>`, and `<command>`, including attributes like `font_src`, `src`, `target`, and layout coordinates.
-- Per-screen export file names preserve the original screen names (for example `Home.html`, `Result.html`, `Home.json`, `Result.json`).
-- JSON export downloads a zip archive with a `json/` folder containing `project.json` plus one JSON file per screen.
-- JSON per-screen exports also include `json/assets/` so screen JSON files reference packaged assets and do not break on device.
-- Open Project accepts both the saved project format and the wrapped JSON export format.
-- Hardware-button configuration now exposes two mutually exclusive options per button: navigate to a screen or send a predefined action (`text`, `number`, or `scan`). When one is selected, the other is exported as empty so device firmware receives an unambiguous mapping.
-- Hardware-button actions are now centralized in `src/config/actions.ts` and organized by type (input, device, app). This makes it easy to add new actions (e.g., `connect`, `disconnect`, `start_scanner`, `change_theme`) and fetch them from a server endpoint in the future.
-- CMS also provides a deployment bundle generator that creates one zip containing only the selected UI type (`ui/html/` or `ui/json/`), plus `config/ui_config.json` and `config/manifest.json` for device-side routing and file indexing.
-- Deployment config is designed for LittleFS storage (`/lfs/ui`) so firmware can load UI files directly from LFS instead of a static data folder.
-- Deployment metadata includes selected type, target LFS directory (`/lfs/ui/html` or `/lfs/ui/json`), and active entry path so firmware can write and load from the correct location.
-- Deployment config (`config/ui_config.json`) now also includes `ackEnabled` so device-side logic can see whether CMS is running with ACK-wait flow enabled for chunk sends.
-- If a screen named `Home` exists, deployment sets it as the landing entry (`ui/html/Home.html` or `ui/json/Home.json`). If no Home screen exists, deployment falls back to `ui/html/index.html` (HTML) or `ui/json/project.json` (JSON).
-- BLE deployment now runs end-to-end from CMS state: build selected-type zip bundle, send `zip_start` packet with device routing metadata, stream `zip_chunk` packets, then send `zip_commit`.
-- BLE modal provides a manual "Download ZIP" action so you can inspect and verify the exact deployment bundle before sending.
-- BLE modal flashes a completion message when progress reaches 100% and keeps it visible until the deployment dialog closes.
-- BLE modal includes deployment progress and log output (phase, chunk counters, and send status) to help debug transfer issues.
-- Deployment packets are sent in strict sequence using `writeValueWithResponse`, so each packet is acknowledged at GATT level before the next packet is sent.
-- CMS now also waits for firmware protocol-level ACK notifications (`zip_start_ack`, `zip_chunk_ack`, `zip_commit_ack` or compatible `zip_ack`) before sending the next packet.
 
+- Export and deployment format availability is configurable through feature flags in `src/config/project.ts`:
+	- `enableHtmlUiFormat`
+	- `enableJsonUiFormat`
+	Disabled formats are hidden/blocked in Export and BLE deployment.
 ## Main Features
 
 - Multi-screen project editor for PIN Evo and Flex layouts

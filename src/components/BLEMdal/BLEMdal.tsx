@@ -81,15 +81,6 @@ function isAckSuccessful(ack: any): boolean {
     return true;
 }
 
-function downloadBundle(blob: Blob, fileName: string): void {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = fileName;
-    anchor.click();
-    URL.revokeObjectURL(url);
-}
-
 async function setupAckNotifications(
     service: BluetoothRemoteGATTService,
     writeCharacteristic: BluetoothRemoteGATTCharacteristic
@@ -209,6 +200,14 @@ interface DeploymentLogEntry {
     message: string;
 }
 
+function getFirstEnabledDeployType(): DeployUIType {
+    if (FEATURE_FLAGS.enableHtmlUiFormat) {
+        return 'html';
+    }
+
+    return 'json';
+}
+
 export default function BLEMdal({
     isOpen,
     onClose,
@@ -236,10 +235,18 @@ export default function BLEMdal({
         console[consoleMethod](`[BLE Deploy] ${message}`);
     }, []);
 
+    const isHtmlEnabled = FEATURE_FLAGS.enableHtmlUiFormat;
+    const isJsonEnabled = FEATURE_FLAGS.enableJsonUiFormat;
+    const hasAnyDeployFormat = isHtmlEnabled || isJsonEnabled;
+
     const handleDeployTypeChange = useCallback((nextType: DeployUIType) => {
+        if ((nextType === 'html' && !isHtmlEnabled) || (nextType === 'json' && !isJsonEnabled)) {
+            return;
+        }
+
         setDeployType(nextType);
         onDeployTypeChange?.(nextType);
-    }, [onDeployTypeChange]);
+    }, [isHtmlEnabled, isJsonEnabled, onDeployTypeChange]);
 
     // Reset state when modal closes
     useEffect(() => {
@@ -252,12 +259,16 @@ export default function BLEMdal({
             setIsConnecting(false);
             setIsDeploying(false);
             setDeploySuccess(false);
-            setDeployType(selectedDeployType);
+            const nextType =
+                (selectedDeployType === 'html' && isHtmlEnabled) || (selectedDeployType === 'json' && isJsonEnabled)
+                    ? selectedDeployType
+                    : getFirstEnabledDeployType();
+            setDeployType(nextType);
             setDeployPhase('idle');
             setDeployCurrentChunk(0);
             setDeployTotalChunks(0);
         }
-    }, [isOpen, selectedDeployType]);
+    }, [isHtmlEnabled, isJsonEnabled, isOpen, selectedDeployType]);
 
     // Check Web Bluetooth support
     useEffect(() => {
@@ -371,30 +382,6 @@ export default function BLEMdal({
         setWriteCharacteristic(null);
     }, [connectedDevice]);
 
-    const handleDownloadZip = useCallback(async () => {
-        if (!state.project) {
-            setError('No project loaded. Create or open a project before downloading ZIP.');
-            return;
-        }
-
-        if (!state.screens.length) {
-            setError('No screens available to export.');
-            return;
-        }
-
-        try {
-            setError(null);
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_CONFIG.limits.modalPacketChunkSize, {
-                ackEnabled: BLE_CONFIG.waitForAckOnChunks,
-            });
-            downloadBundle(bundle.blob, bundle.fileName);
-            addLog('info', `Deployment zip downloaded: ${bundle.fileName}`);
-        } catch (err: any) {
-            setError(`ZIP download failed: ${err.message || err.name}`);
-            addLog('error', `ZIP download failed: ${err.message || err.name}`);
-        }
-    }, [addLog, deployType, state]);
-
     const handleDeploy = useCallback(async () => {
         if (!connectedDevice?.nativeDevice?.gatt) {
             setError('Device is not connected. Reconnect and try again.');
@@ -408,6 +395,16 @@ export default function BLEMdal({
 
         if (!state.screens.length) {
             setError('No screens available to deploy.');
+            return;
+        }
+
+        if (!hasAnyDeployFormat) {
+            setError('All deployment formats are disabled in configuration.');
+            return;
+        }
+
+        if ((deployType === 'html' && !isHtmlEnabled) || (deployType === 'json' && !isJsonEnabled)) {
+            setError(`${deployType.toUpperCase()} deployment is disabled in configuration.`);
             return;
         }
 
@@ -721,10 +718,10 @@ export default function BLEMdal({
                                         id="ble-ui-type"
                                         value={deployType}
                                         onChange={(event) => handleDeployTypeChange(event.target.value as DeployUIType)}
-                                        disabled={isDeploying}
+                                        disabled={isDeploying || !hasAnyDeployFormat}
                                     >
-                                        <option value="html">HTML</option>
-                                        <option value="json">JSON</option>
+                                        {isHtmlEnabled && <option value="html">HTML</option>}
+                                        {isJsonEnabled && <option value="json">JSON</option>}
                                     </select>
                                 </div>
                             </div>
@@ -762,7 +759,7 @@ export default function BLEMdal({
                                 <button
                                     className={`ble-deploy-btn ${isDeploying ? 'deploying' : ''} ${deploySuccess ? 'success' : ''}`}
                                     onClick={handleDeploy}
-                                    disabled={isDeploying || deploySuccess}
+                                    disabled={isDeploying || deploySuccess || !hasAnyDeployFormat}
                                 >
                                     {isDeploying ? (
                                         <>
@@ -786,20 +783,6 @@ export default function BLEMdal({
                                             Deploy to Device
                                         </>
                                     )}
-                                </button>
-                                <button
-                                    className="ble-download-btn"
-                                    onClick={() => {
-                                        void handleDownloadZip();
-                                    }}
-                                    disabled={isDeploying}
-                                >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                        <polyline points="7 10 12 15 17 10" />
-                                        <line x1="12" y1="15" x2="12" y2="3" />
-                                    </svg>
-                                    Download ZIP
                                 </button>
                                 <button
                                     className="ble-disconnect-btn"

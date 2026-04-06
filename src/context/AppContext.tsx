@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareButtonId, HardwareButtonConfig } from '../types';
+import type { DeployUIType } from '../services/exportService';
+import { FEATURE_FLAGS } from '../config/project';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
 
 // Local storage keys
@@ -212,6 +214,7 @@ interface CMSContextValue {
   deleteComponent: (componentId: string) => void;
   selectComponent: (id: string | null) => void;
   moveComponent: (componentId: string, x: number, y: number) => void;
+  downloadExportZip: (type: DeployUIType) => Promise<void>;
   saveScreens: () => Promise<void>;
   saveAsHtml: () => Promise<void>;
   saveProject: () => Promise<void>;
@@ -295,15 +298,29 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     [state.activeScreenId]
   );
 
-  const saveScreens = useCallback(async () => {
-    const jsonBundle = await generateJsonScreensExport(state);
-    downloadFile(jsonBundle.blob, 'application/zip', jsonBundle.fileName);
+  const downloadExportZip = useCallback(async (type: DeployUIType) => {
+    if (type === 'html' && !FEATURE_FLAGS.enableHtmlUiFormat) {
+      throw new Error('HTML export is disabled in configuration.');
+    }
+
+    if (type === 'json' && !FEATURE_FLAGS.enableJsonUiFormat) {
+      throw new Error('JSON export is disabled in configuration.');
+    }
+
+    const bundle = type === 'html'
+      ? await generateHtmlExport(state)
+      : await generateJsonScreensExport(state);
+
+    downloadFile(bundle.blob, 'application/zip', bundle.fileName);
   }, [state]);
 
+  const saveScreens = useCallback(async () => {
+    await downloadExportZip('json');
+  }, [downloadExportZip]);
+
   const saveAsHtml = useCallback(async () => {
-    const htmlBundle = await generateHtmlExport(state);
-    downloadFile(htmlBundle.blob, 'application/zip', htmlBundle.fileName);
-  }, [state]);
+    await downloadExportZip('html');
+  }, [downloadExportZip]);
 
   const saveProject = useCallback(async () => {
     if (!state.project) {
@@ -500,6 +517,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
         deleteComponent,
         selectComponent,
         moveComponent,
+        downloadExportZip,
         saveScreens,
         saveAsHtml,
         saveProject,
