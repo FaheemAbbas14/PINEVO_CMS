@@ -78,6 +78,8 @@ export const EXPORT_CONFIG = {
         backend: 'lfs',
         basePath: '/lfs/ui',
     },
+    // Deployment image conversion mode: 'raw' (uncompressed RGBA) or 'auto' (JPEG/PNG based on transparency)
+    deploymentImageFormat: 'auto', // 'raw' | 'auto'
     // Folder paths for selected UI types.
     ui: {
         html: 'ui/html',
@@ -145,7 +147,7 @@ export const FEATURE_FLAGS = {
     // Enable HTML UI export/deployment format.
     enableHtmlUiFormat: true,
     // Enable JSON UI export/deployment format.
-    enableJsonUiFormat: true,
+    enableJsonUiFormat: false,
     // Enable sandbox mode for testing.
     enableSandboxMode: true,
     // Enable preview mode for screen interactions.

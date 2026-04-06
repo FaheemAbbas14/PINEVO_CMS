@@ -414,6 +414,25 @@
     cursor: not-allowed;
 }
 
+.ble-cancel-deploy-btn {
+    margin-top: 10px;
+    width: 100%;
+    padding: 7px 0;
+    font-size: 13px;
+    font-weight: 500;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.ble-cancel-deploy-btn:hover {
+    background: #fee2e2;
+    border-color: #f87171;
+}
+
 .ble-devices-header {
     display: flex;
     align-items: center;

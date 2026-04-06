@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import type { CMSState, CanvasComponent, HardwareButtonConfig, ProjectType, Screen } from '../types';
-import { BLE_CONFIG, FEATURE_FLAGS } from '../config/project';
+import { BLE_CONFIG, FEATURE_FLAGS, EXPORT_CONFIG } from '../config/project';
 import {
   FLEX_CANVAS_HEIGHT,
   FLEX_CANVAS_WIDTH,
@@ -110,6 +110,10 @@ interface EmbeddedAsset {
 interface EmbeddedAssetRegistry {
   references: Map<string, string>;
   assets: EmbeddedAsset[];
+}
+
+interface EmbeddedAssetCollectionOptions {
+  rawDeploymentImages?: boolean;
 }
 
 function createExportPayload(state: CMSState): ExportPayload {
@@ -235,7 +239,7 @@ function decodeBase64(base64: string) {
   const binary = globalThis.atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+    bytes[index] = binary.codePointAt(index) || 0;
   }
   return bytes;
 }
@@ -260,14 +264,127 @@ function parseDataUrl(dataUrl: string) {
   }
 }
 
-function collectEmbeddedAssets(screens: Screen[]): EmbeddedAssetRegistry {
+async function bytesToBlob(bytes: Uint8Array, mimeType: string) {
+  const clonedBytes = Uint8Array.from(bytes);
+  return new Blob([clonedBytes], { type: mimeType });
+}
+
+async function decodeRasterImage(bytes: Uint8Array, mimeType: string): Promise<HTMLImageElement | null> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') {
+    return null;
+  }
+
+  const blob = await bytesToBlob(bytes, mimeType);
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    const image = new Image();
+    image.decoding = 'async';
+    const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Failed to decode image asset'));
+    });
+    image.src = objectUrl;
+    return await loaded;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function normalizeDeploymentImageAsset(parsed: { mimeType: string; bytes: Uint8Array }) {
+  if (!parsed.mimeType.toLowerCase().startsWith('image/')) {
+    return {
+      extension: mimeTypeToExtension(parsed.mimeType),
+      bytes: parsed.bytes,
+    };
+  }
+
+  // Skip vector and animated formats to avoid changing rendering semantics.
+  const normalizedMime = parsed.mimeType.toLowerCase();
+  if (
+    normalizedMime.includes('svg')
+    || normalizedMime.includes('gif')
+  ) {
+    return {
+      extension: mimeTypeToExtension(parsed.mimeType),
+      bytes: parsed.bytes,
+    };
+  }
+
+  const image = await decodeRasterImage(parsed.bytes, parsed.mimeType);
+  if (!image) {
+    return {
+      extension: mimeTypeToExtension(parsed.mimeType),
+      bytes: parsed.bytes,
+    };
+  }
+
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  if (!width || !height || typeof document === 'undefined') {
+    return {
+      extension: mimeTypeToExtension(parsed.mimeType),
+      bytes: parsed.bytes,
+    };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return {
+      extension: mimeTypeToExtension(parsed.mimeType),
+      bytes: parsed.bytes,
+    };
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  // Extract RGBA8888 pixel data
+  const rgba = context.getImageData(0, 0, width, height).data;
+  // Convert to RGB565 (2 bytes per pixel)
+  const rgb565 = new Uint8Array(width * height * 2);
+  for (let i = 0, j = 0; i < rgba.length; i += 4, j += 2) {
+    const r = rgba[i];
+    const g = rgba[i + 1];
+    const b = rgba[i + 2];
+    // Pack into RGB565
+    const value = ((r & 0b11111000) << 8) | ((g & 0b11111100) << 3) | (b >> 3);
+    rgb565[j] = (value >> 8) & 0xFF;
+    rgb565[j + 1] = value & 0xFF;
+  }
+
+  return {
+    extension: 'raw',
+    bytes: rgb565,
+    nameSuffix: `_${width}x${height}`,
+  };
+}
+
+
+
+async function collectEmbeddedAssets(
+  screens: Screen[],
+  options: EmbeddedAssetCollectionOptions = {}
+): Promise<EmbeddedAssetRegistry> {
   const references = new Map<string, string>();
   const assets: EmbeddedAsset[] = [];
   const usedNames = new Set<string>();
   let counter = 1;
 
-  const addAsset = (rawValue: string | undefined, kind: 'image' | 'audio') => {
-    if (!rawValue || !rawValue.startsWith('data:')) {
+  // Determine image conversion mode: 'raw' or 'auto' (JPEG/PNG)
+
+  const deploymentImageFormat = EXPORT_CONFIG.deploymentImageFormat as 'raw' | 'auto';
+  const useRaw = (options.rawDeploymentImages === true) || deploymentImageFormat === 'raw';
+  // Print selected image format in console
+  console.log(`[Deploy] Selected deployment image format: ${deploymentImageFormat === 'raw' ? 'RAW (uncompressed RGBA)' : 'AUTO (JPEG/PNG)'}`);
+
+
+  const addAsset = async (rawValue: string | undefined, kind: 'image' | 'audio') => {
+    if (!rawValue?.startsWith('data:')) {
       return;
     }
 
@@ -280,27 +397,57 @@ function collectEmbeddedAssets(screens: Screen[]): EmbeddedAssetRegistry {
       return;
     }
 
-    const extension = mimeTypeToExtension(parsed.mimeType);
-    let fileName = `${kind}_${counter}.${extension}`;
+    let normalizedAsset;
+    if (kind === 'image') {
+      if (useRaw) {
+        normalizedAsset = await normalizeDeploymentImageAsset(parsed);
+        const originalKb = (parsed.bytes.byteLength / 1024).toFixed(2);
+        const convertedKb = (normalizedAsset.bytes.byteLength / 1024).toFixed(2);
+        const suffix = 'nameSuffix' in normalizedAsset ? (normalizedAsset.nameSuffix ?? '') : '';
+        console.log(
+          `[Deploy] Image asset${suffix}: original=${parsed.mimeType} ${originalKb} KB → raw RGB565${suffix} ${convertedKb} KB`
+        );
+      } else {
+        normalizedAsset = {
+          extension: mimeTypeToExtension(parsed.mimeType),
+          bytes: parsed.bytes,
+        };
+        const originalKb = (parsed.bytes.byteLength / 1024).toFixed(2);
+        const convertedKb = (normalizedAsset.bytes.byteLength / 1024).toFixed(2);
+        console.log(
+          `[Deploy] Image asset: original=${parsed.mimeType} ${originalKb} KB → ${normalizedAsset.extension.toUpperCase()} ${convertedKb} KB`
+        );
+      }
+    } else {
+      normalizedAsset = {
+        extension: mimeTypeToExtension(parsed.mimeType),
+        bytes: parsed.bytes,
+      };
+    }
+
+    const extension = normalizedAsset.extension;
+    // Include pixel dimensions in the filename for raw assets so firmware knows the geometry.
+    const nameSuffix = 'nameSuffix' in normalizedAsset ? (normalizedAsset.nameSuffix ?? '') : '';
+    let fileName = `${kind}_${counter}${nameSuffix}.${extension}`;
     while (usedNames.has(fileName.toLowerCase())) {
       counter += 1;
-      fileName = `${kind}_${counter}.${extension}`;
+      fileName = `${kind}_${counter}${nameSuffix}.${extension}`;
     }
 
     usedNames.add(fileName.toLowerCase());
     const relativePath = `assets/${fileName}`;
     references.set(rawValue, relativePath);
-    assets.push({ relativePath, bytes: parsed.bytes });
+    assets.push({ relativePath, bytes: normalizedAsset.bytes });
     counter += 1;
   };
 
-  screens.forEach((screen) => {
-    screen.components.forEach((component) => {
-      addAsset(component.imageUrl, 'image');
-      addAsset(component.audioUrl, 'audio');
-      addAsset(component.buttonSound, 'audio');
-    });
-  });
+  for (const screen of screens) {
+    for (const component of screen.components) {
+      await addAsset(component.imageUrl, 'image');
+      await addAsset(component.audioUrl, 'audio');
+      await addAsset(component.buttonSound, 'audio');
+    }
+  }
 
   return { references, assets };
 }
@@ -347,10 +494,6 @@ function sanitizeIdentifier(value: string) {
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, '_')
     .replaceAll(/^_+|_+$/g, '') || 'screen';
-}
-
-function isDigitHardwareButtonKey(value: string) {
-  return /^[0-9]$/.test(value);
 }
 
 function buildScreenTargetMap(screens: Screen[]) {
@@ -415,6 +558,34 @@ function normalizeExportInputAction(action: string | undefined) {
   }
 
   return action;
+}
+
+function isHomeScreen(screen: Screen, targetByScreenId: Map<string, string>) {
+  const target = targetByScreenId.get(screen.id) || sanitizeIdentifier(screen.name);
+  return target === 'home';
+}
+
+function createRuntimeUiTypeIndicatorTag(format: DeployUIType, canvasSize: { width: number; height: number }) {
+  return buildTag('label', [
+    ['x', Math.max(8, canvasSize.width - 110)],
+    ['y', 8],
+    ['font', 12],
+    ['color', '#64748b'],
+    ['font_src', ''],
+    ['text', `UI: ${format.toUpperCase()}`],
+  ]);
+}
+
+function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize: { width: number; height: number }) {
+  return {
+    type: 'label',
+    x: Math.max(8, canvasSize.width - 110),
+    y: 8,
+    font: 12,
+    color: '#64748b',
+    font_src: '',
+    text: `UI: ${format.toUpperCase()}`,
+  };
 }
 
 function buildFirmwareJsonComponent(
@@ -682,10 +853,12 @@ function generateScreenHtml(
   const screenName = sanitizeIdentifier(normalizedScreen.name);
   const components = normalizedScreen.components
     .map((component, index) => renderFirmwareComponent(component, index, targetByScreenId, embeddedAssetRefs))
-    .filter(Boolean)
-    .join('\n');
+    .filter(Boolean);
+  if (isHomeScreen(normalizedScreen, targetByScreenId)) {
+    components.push(createRuntimeUiTypeIndicatorTag('html', canvasSize));
+  }
   const hardwareMappings = renderHardwareMappings(normalizedScreen, targetByScreenId);
-  const sections = [components, hardwareMappings].filter(Boolean).join('\n');
+  const sections = [components.join('\n'), hardwareMappings].filter(Boolean).join('\n');
 
   return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
 }
@@ -740,8 +913,8 @@ function splitBinaryIntoChunks(data: Uint8Array, chunkSize: number) {
 
 function bytesToBase64(bytes: Uint8Array) {
   let binary = '';
-  for (let index = 0; index < bytes.length; index += 1) {
-    binary += String.fromCharCode(bytes[index]);
+  for (const byte of bytes) {
+    binary += String.fromCodePoint(byte);
   }
   return btoa(binary);
 }
@@ -804,10 +977,12 @@ function generateScreenJsonExport(
   const components = normalizedScreen.components.map((component, index) =>
     buildFirmwareJsonComponent(component, index, targetByScreenId, embeddedAssetRefs)
   );
+  if (isHomeScreen(normalizedScreen, targetByScreenId)) {
+    components.push(createRuntimeUiTypeIndicatorComponent('json', canvasSize));
+  }
 
   const hardwareButtons =
     Object.entries(normalizedScreen.hardwareButtons || {})
-      .filter(([buttonId]) => isDigitHardwareButtonKey(buttonId))
       .map(([buttonId, config]) => {
         const normalized = normalizeHardwareButtonConfig(config);
         return {
@@ -844,7 +1019,7 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
   const jsonFolder = zip.folder('ui/json');
   const canvasSize = getCanvasSize(state.project?.type);
   const targetByScreenId = buildScreenTargetMap(state.screens);
-  const assetRegistry = collectEmbeddedAssets(state.screens);
+  const assetRegistry = await collectEmbeddedAssets(state.screens);
 
   if (!jsonFolder) {
     throw new Error('Failed to create json export folder.');
@@ -876,7 +1051,7 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   const uiFolder = zip.folder('ui');
   const screenFileNames = buildScreenFileMap(state.screens, 'html');
   const targetByScreenId = buildScreenTargetMap(state.screens);
-  const assetRegistry = collectEmbeddedAssets(state.screens);
+  const assetRegistry = await collectEmbeddedAssets(state.screens);
 
   if (!uiFolder) {
     throw new Error('Failed to create ui export folder.');
@@ -923,7 +1098,10 @@ export async function generateBLEDeploymentBundle(
   const configFolder = zip.folder('config');
   const canvasSize = getCanvasSize(state.project?.type);
   const targetByScreenId = buildScreenTargetMap(state.screens);
-  const assetRegistry = collectEmbeddedAssets(state.screens);
+  // Only use rawDeploymentImages if EXPORT_CONFIG.deploymentImageFormat is 'raw'
+  const assetRegistry = await collectEmbeddedAssets(state.screens, {
+    rawDeploymentImages: EXPORT_CONFIG.deploymentImageFormat === 'raw',
+  });
   const fileEntries: UIDeployManifest['files'] = [];
 
   const selectedFolderPath = selectedType === 'html' ? 'ui/html' : 'ui/json';

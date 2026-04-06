@@ -222,6 +222,12 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                   </div>
                 )}
               </div>
+              {hasAnyExportFormat && (
+                <div className="format-indicator" aria-label={`Current UI format ${selectedDeployType.toUpperCase()}`}>
+                  <span className="format-indicator-label">Format</span>
+                  <span className={`format-indicator-value format-${selectedDeployType}`}>{selectedDeployType.toUpperCase()}</span>
+                </div>
+              )}
               {onOpenSimulator && (
                 <button
                   className="btn-save btn-compact"

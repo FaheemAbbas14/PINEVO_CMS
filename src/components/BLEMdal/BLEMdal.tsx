@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import './BLEMdal.css';
 import { useCMS } from '../../context/AppContext';
 import { BLE_CONFIG, FEATURE_FLAGS } from '../../config/project';
@@ -229,11 +229,18 @@ export default function BLEMdal({
     const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'flashing' | 'complete'>('idle');
     const [deployCurrentChunk, setDeployCurrentChunk] = useState(0);
     const [deployTotalChunks, setDeployTotalChunks] = useState(0);
+    // Holds the AbortController for the in-flight deployment so the cross button can cancel it.
+    const deployAbortRef = useRef<AbortController | null>(null);
 
     const addLog = useCallback((level: DeploymentLogEntry['level'], message: string) => {
         const consoleMethod = level === 'warn' ? 'warn' : level === 'error' ? 'error' : 'log';
         console[consoleMethod](`[BLE Deploy] ${message}`);
     }, []);
+
+    const handleCancelDeployAndClose = useCallback(() => {
+        deployAbortRef.current?.abort();
+        onClose();
+    }, [onClose]);
 
     const isHtmlEnabled = FEATURE_FLAGS.enableHtmlUiFormat;
     const isJsonEnabled = FEATURE_FLAGS.enableJsonUiFormat;
@@ -414,6 +421,10 @@ export default function BLEMdal({
         setDeployPhase('preparing');
         setDeployCurrentChunk(0);
         setDeployTotalChunks(0);
+        // Create a fresh AbortController for this deployment; the cross button calls abort() on it.
+        const deployAbort = new AbortController();
+        deployAbortRef.current = deployAbort;
+        const { signal } = deployAbort;
         let ackChannel: Awaited<ReturnType<typeof setupAckNotifications>> | null = null;
         let protocolAckEnabled = false;
 
@@ -432,6 +443,20 @@ export default function BLEMdal({
                 throw new Error('No writable BLE characteristic available');
             }
 
+            const configuredChunkSize = BLE_CONFIG.limits.modalPacketChunkSize;
+            const reportedMtu = Number((connectedDevice.nativeDevice as { mtu?: number } | undefined)?.mtu);
+            const fallbackMtu = Math.max(
+                BLE_CONFIG.limits.defaultMtu,
+                configuredChunkSize + BLE_CONFIG.limits.mtuReservedBytes
+            );
+            const mtuUsedForChunking = Number.isFinite(reportedMtu) && reportedMtu > 0
+                ? reportedMtu
+                : fallbackMtu;
+            addLog(
+                'info',
+                `Chunking params: mtu=${mtuUsedForChunking}, reserved=${BLE_CONFIG.limits.mtuReservedBytes}, chunk_size=${configuredChunkSize}`
+            );
+
             const service = await server.getPrimaryService(BLE_CONFIG.cms.SERVICE);
             try {
                 ackChannel = await setupAckNotifications(service, characteristic);
@@ -444,7 +469,7 @@ export default function BLEMdal({
 
             addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
             const chunkAckEnabled = FEATURE_FLAGS.enableProtocolAck && BLE_CONFIG.waitForAckOnChunks;
-            const bundle = await generateBLEDeploymentBundle(state, deployType, BLE_CONFIG.limits.modalPacketChunkSize, {
+            const bundle = await generateBLEDeploymentBundle(state, deployType, configuredChunkSize, {
                 ackEnabled: protocolAckEnabled && chunkAckEnabled,
             });
             const packets = createBLEZipDeploymentPackets(bundle);
@@ -492,6 +517,9 @@ export default function BLEMdal({
 
             setDeployPhase('uploading');
             for (let index = 0; index < packets.chunks.length; index += 1) {
+                if (signal.aborted) {
+                    throw new DOMException('Deployment cancelled', 'AbortError');
+                }
                 const chunkPacket = packets.chunks[index];
                 const expectedIndex = index;
                     let chunkWasAcked = false;
@@ -549,7 +577,14 @@ export default function BLEMdal({
                 }
 
                 if (index < packets.chunks.length - 1) {
-                    await new Promise((resolve) => setTimeout(resolve, BLE_CONFIG.timing.interChunkDelayMs));
+                    // Abortable inter-chunk delay — resolves normally or rejects if cancelled.
+                    await new Promise<void>((resolve, reject) => {
+                        const timerId = setTimeout(resolve, BLE_CONFIG.timing.interChunkDelayMs);
+                        signal.addEventListener('abort', () => {
+                            clearTimeout(timerId);
+                            reject(new DOMException('Deployment cancelled', 'AbortError'));
+                        }, { once: true });
+                    });
                 }
             }
 
@@ -620,13 +655,18 @@ export default function BLEMdal({
                 onClose();
             }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
         } catch (err: any) {
-            console.error('[BLE] Deploy error:', err);
+            if (err instanceof DOMException && err.name === 'AbortError') {
+                addLog('warn', 'Deployment cancelled by user');
+            } else {
+                console.error('[BLE] Deploy error:', err);
+                addLog('error', `Deploy failed: ${err.message || err.name}`);
+                setError(`Deploy failed: ${err.message || err.name}`);
+            }
             setIsDeploying(false);
             setDeploySuccess(false);
-            setError(`Deploy failed: ${err.message || err.name}`);
-            addLog('error', `Deploy failed: ${err.message || err.name}`);
             setDeployPhase('idle');
         } finally {
+            deployAbortRef.current = null;
             if (ackChannel) {
                 await ackChannel.cleanup();
             }
@@ -669,8 +709,8 @@ export default function BLEMdal({
                     </h2>
                     <button
                         className="ble-modal-close"
-                        onClick={onClose}
-                        aria-label="Close BLE modal"
+                        onClick={isDeploying ? handleCancelDeployAndClose : onClose}
+                        aria-label={isDeploying ? 'Cancel deployment and close' : 'Close BLE modal'}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="18" y1="6" x2="6" y2="18" />

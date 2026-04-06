@@ -29,6 +29,14 @@ Use the Export button in the top bar to choose the output format.
 	- `enableHtmlUiFormat`
 	- `enableJsonUiFormat`
 	Disabled formats are hidden/blocked in Export and BLE deployment.
+- The active UI format is also shown in the top bar so you can immediately see whether the project is currently set to HTML or JSON for export/deployment.
+- Exported `Home` screens also get an embedded runtime label (`UI: HTML` or `UI: JSON`) so firmware can display which UI format is currently being rendered.
+- HTML and JSON hardware button exports now use the same configured key set, including non-digit keys such as `backspace`, `enter`, or `call` when present.
+- BLE deployment image asset conversion is configurable via `EXPORT_CONFIG.deploymentImageFormat` in `src/config/project.ts`:
+	- `'auto'` (default): Opaque images are exported as `.jpg`, images with transparency as `.png`.
+	- `'raw'`: All raster images are converted to raw uncompressed RGBA format for embedded use (much larger, but direct pixel data).
+	- Logging of image sizes before and after conversion is included in both modes.
+	- To change the mode, set `deploymentImageFormat: 'raw'` or `'auto'` in `EXPORT_CONFIG`.
 ## Main Features
 
 - Multi-screen project editor for PIN Evo and Flex layouts

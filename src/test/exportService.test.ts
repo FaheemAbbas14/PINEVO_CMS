@@ -23,6 +23,7 @@ const sampleState: CMSState = {
       hardwareButtons: {
         '1': { goToScreen: 'screen-2' },
         '4': { inputAction: 'change_theme' },
+        backspace: { inputAction: 'connect' },
       },
       components: [
         {
@@ -135,8 +136,10 @@ describe('exportService', () => {
     expect(screenHtml).toContain('target="result"');
     expect(screenHtml).toContain('<hardware_button key="1" target="result" input_action="" command=""/>');
     expect(screenHtml).toContain('<hardware_button key="4" target="" input_action="change_theme" command=""/>');
+    expect(screenHtml).toContain('<hardware_button key="backspace" target="" input_action="connect" command=""/>');
     expect(screenHtml).toContain('<image x="12" y="10" width="80" height="36" src="https://example.com/logo.png"');
     expect(screenHtml).toContain('font_src=""');
+    expect(screenHtml).toContain('text="UI: HTML"');
     expect(screenHtml).not.toContain('<section class="canvas-shell">');
     expect(projectJson).toContain('"screenCount": 2');
   });
@@ -216,8 +219,12 @@ describe('exportService', () => {
     expect(homeJson).toContain('"key": "1"');
     expect(homeJson).toContain('"target": "result"');
     expect(homeJson).toContain('"input_action": "change_theme"');
+    expect(homeJson).toContain('"key": "backspace"');
+    expect(homeJson).toContain('"input_action": "connect"');
     expect(homeJson).toContain('"type": "label"');
+    expect(homeJson).toContain('"text": "UI: JSON"');
     expect(resultJson).toContain('"name": "result"');
+    expect(resultJson).not.toContain('"text": "UI: JSON"');
     expect(homeJson).not.toContain('"project"');
     expect(homeJson).not.toContain('"canvas"');
     expect(zip.file('ui/project.json')).toBeFalsy();
@@ -271,32 +278,32 @@ describe('exportService', () => {
   });
 
   it('builds deploy bundle with selected type only and 244-byte chunks', async () => {
-    const deployment = await generateBLEDeploymentBundle(sampleState, 'json', 244);
+    const deployment = await generateBLEDeploymentBundle(sampleState, 'html', 244);
     const zip = await JSZip.loadAsync(deployment.blob);
     const configRaw = await zip.file('config/ui_config.json')?.async('string');
     const manifestRaw = await zip.file('config/manifest.json')?.async('string');
 
     expect(configRaw).toBeTruthy();
     expect(manifestRaw).toBeTruthy();
-    expect(zip.file('ui/json/project.json')).toBeFalsy();
-    expect(zip.file('ui/json/home.json')).toBeTruthy();
-    expect(zip.file('ui/html/index.html')).toBeFalsy();
-    expect(zip.file('ui/html/Home.html')).toBeFalsy();
     expect(zip.file('ui/html/project.json')).toBeFalsy();
+    expect(zip.file('ui/html/Home.html')).toBeTruthy();
+    expect(zip.file('ui/json/home.json')).toBeFalsy();
+    expect(zip.file('ui/json/index.html')).toBeFalsy();
+    expect(zip.file('ui/json/project.json')).toBeFalsy();
 
     const config = JSON.parse(configRaw || '{}');
     const manifest = JSON.parse(manifestRaw || '{}');
 
-    expect(config.selectedType).toBe('json');
+    expect(config.selectedType).toBe('html');
     expect(config.ackEnabled).toBe(true);
-    expect(config.targetLfsDirectory).toBe('/lfs/ui/json');
-    expect(config.activeEntryPath).toBe('ui/json/home.json');
+    expect(config.targetLfsDirectory).toBe('/lfs/ui/html');
+    expect(config.activeEntryPath).toBe('ui/html/Home.html');
     expect(config.storage.backend).toBe('lfs');
-    expect(config.paths.selectedRoot).toBe('ui/json');
-    expect(config.paths.selectedAssetsRoot).toBe('ui/json/assets');
-    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/html/index.html')).toBe(false);
-    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/project.json')).toBe(false);
-    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/home.json')).toBe(true);
+    expect(config.paths.selectedRoot).toBe('ui/html');
+    expect(config.paths.selectedAssetsRoot).toBe('ui/html/assets');
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/json/home.json')).toBe(false);
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/html/project.json')).toBe(false);
+    expect(manifest.files.some((entry: { path: string }) => entry.path === 'ui/html/Home.html')).toBe(true);
 
     expect(deployment.fileName).toBe('warehouse_flow_deploy_bundle.zip');
     expect(deployment.chunkSize).toBe(244);

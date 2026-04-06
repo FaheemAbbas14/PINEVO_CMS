@@ -266,6 +266,44 @@
   color: #666;
 }
 
+.format-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid #e8e8e8;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+.format-indicator-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.format-indicator-value {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.format-indicator-value.format-html {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.format-indicator-value.format-json {
+  background: #dcfce7;
+  color: #15803d;
+}
+
 .btn-deploy {
   display: flex;
   align-items: center;
