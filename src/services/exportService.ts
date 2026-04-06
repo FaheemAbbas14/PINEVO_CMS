@@ -1,4 +1,6 @@
 import JSZip from 'jszip';
+import enLocale from '../locales/en.json';
+import daLocale from '../locales/da.json';
 import type { CMSState, CanvasComponent, HardwareButtonConfig, ProjectType, Screen } from '../types';
 import { BLE_CONFIG, FEATURE_FLAGS, EXPORT_CONFIG } from '../config/project';
 import {
@@ -1100,7 +1102,7 @@ export async function generateBLEDeploymentBundle(
   const targetByScreenId = buildScreenTargetMap(state.screens);
   // Only use rawDeploymentImages if EXPORT_CONFIG.deploymentImageFormat is 'raw'
   const assetRegistry = await collectEmbeddedAssets(state.screens, {
-    rawDeploymentImages: EXPORT_CONFIG.deploymentImageFormat === 'raw',
+    rawDeploymentImages: (EXPORT_CONFIG.deploymentImageFormat as string) === 'raw',
   });
   const fileEntries: UIDeployManifest['files'] = [];
 
@@ -1118,6 +1120,12 @@ export async function generateBLEDeploymentBundle(
 
   if (!selectedFolder || !configFolder) {
     throw new Error('Failed to create deployment zip folders.');
+  }
+  // Add language files to ui/lang/
+  const langFolder = zip.folder('ui/lang');
+  if (langFolder) {
+    langFolder.file('en.json', JSON.stringify(enLocale, null, 2));
+    langFolder.file('da.json', JSON.stringify(daLocale, null, 2));
   }
 
   const addTextFile = (path: string, content: string) => {

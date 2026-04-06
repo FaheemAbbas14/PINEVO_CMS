@@ -1,5 +1,32 @@
 import { useState } from 'react';
 import { DndProvider } from 'react-dnd';
+import { createContext, useContext } from 'react';
+import { locales } from './locales';
+import type { Locale, Translations } from './locales/types';
+// --- Language Context and Provider ---
+type LanguageContextType = {
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
+  t: (key: string) => string;
+};
+
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+export function useLanguage() {
+  const ctx = useContext(LanguageContext);
+  if (!ctx) throw new Error('useLanguage must be used within LanguageProvider');
+  return ctx;
+}
+
+function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocale] = useState<Locale>('en');
+  const t = (key: string) => locales[locale][key] || key;
+  return (
+    <LanguageContext.Provider value={{ locale, setLocale, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { CMSProvider, useCMS } from './context/AppContext';
 import TopBar from './components/TopBar/TopBar';
@@ -12,6 +39,7 @@ import PINSimulator from './components/PINSimulator/PINSimulator';
 import './App.css';
 
 function AppContent() {
+  const { locale, setLocale, t } = useLanguage();
   const { state, setProject, clearSession, loadProject } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showPINSimulator, setShowPINSimulator] = useState(false);
@@ -53,8 +81,20 @@ function AppContent() {
                 <line x1="12" y1="17" x2="12" y2="21" />
               </svg>
             </div>
-            <h1>Welcome to PINEVO CMS</h1>
-            <p>Create and manage content for your PIN devices</p>
+            <h1>{t('welcome')} to PINEVO CMS</h1>
+            <p>{t('project')}: Create and manage content for your PIN devices</p>
+            <div style={{ marginBottom: 16 }}>
+              <label htmlFor="lang-select">🌐 </label>
+              <select
+                id="lang-select"
+                value={locale}
+                onChange={e => setLocale(e.target.value as Locale)}
+                style={{ fontSize: 16 }}
+              >
+                <option value="en">English</option>
+                <option value="da">Dansk</option>
+              </select>
+            </div>
             <button className="btn-start" onClick={() => setShowNewProjectModal(true)}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -142,6 +182,13 @@ function AppContent() {
 }
 
 function App() {
+  return (
+    <LanguageProvider>
+      <CMSProvider>
+        <AppContent />
+      </CMSProvider>
+    </LanguageProvider>
+  );
   return (
     <CMSProvider>
       <AppContent />

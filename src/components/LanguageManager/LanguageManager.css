@@ -1,0 +1,34 @@
+.language-manager {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+.language-manager ul {
+  list-style: none;
+  padding: 0;
+}
+.language-manager li {
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.language-manager input {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+}
+.language-manager button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  cursor: pointer;
+}
+.language-manager button:disabled {
+  background: #d1d5db;
+  color: #6b7280;
+  cursor: not-allowed;
+}

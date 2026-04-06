@@ -42,6 +42,12 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
     description: 'Switch application theme',
     type: 'device',
   },
+   {
+    value: 'change_language',
+    label: 'Change Language',
+    description: 'Switch application language',
+    type: 'device',
+  },
 ];
 
 // ============================================================================

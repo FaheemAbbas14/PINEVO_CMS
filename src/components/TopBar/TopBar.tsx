@@ -1,4 +1,8 @@
 import { useState } from 'react';
+import { LanguageManagementModal } from './LanguageManagementModal';
+import { locales as initialLocales } from '../../locales';
+import type { Locale, Translations } from '../../../locales/types';
+import { useLanguage } from '../../App';
 import { useCMS } from '../../context/AppContext';
 import { FEATURE_FLAGS } from '../../config/project';
 import type { DeployUIType } from '../../services/exportService';
@@ -25,6 +29,7 @@ function getFirstEnabledDeployType(): DeployUIType {
 }
 
 export default function TopBar({ onOpenSimulator }: TopBarProps) {
+  const { locale, setLocale } = useLanguage();
   const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showBLEModal, setShowBLEModal] = useState(false);
@@ -33,6 +38,11 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
   const [editName, setEditName] = useState('');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [selectedDeployType, setSelectedDeployType] = useState<DeployUIType>(getFirstEnabledDeployType());
+
+    // Language management modal state
+    const [showLangModal, setShowLangModal] = useState(false);
+    const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
+    const [langLocale, setLangLocale] = useState<Locale>('en');
 
   const handleBLEConnect = (device: BLEDevice) => {
     setBleDevice(device);
@@ -222,12 +232,6 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                   </div>
                 )}
               </div>
-              {hasAnyExportFormat && (
-                <div className="format-indicator" aria-label={`Current UI format ${selectedDeployType.toUpperCase()}`}>
-                  <span className="format-indicator-label">Format</span>
-                  <span className={`format-indicator-value format-${selectedDeployType}`}>{selectedDeployType.toUpperCase()}</span>
-                </div>
-              )}
               {onOpenSimulator && (
                 <button
                   className="btn-save btn-compact"
@@ -272,6 +276,31 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
             <span style={{ fontSize: '14px', color: '#666' }}>Create a project to get started</span>
           </div>
         )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              className="btn-save btn-compact"
+              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+              onClick={() => setShowLangModal(true)}
+              aria-label="Manage languages"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M4 4h16v2H4zM4 18h16v2H4zM4 8h16v8H4z" />
+                <circle cx="8" cy="12" r="1.5" />
+                <circle cx="16" cy="12" r="1.5" />
+              </svg>
+              <span>Languages</span>
+            </button>
+        </div>
+
+        <LanguageManagementModal
+          isOpen={showLangModal}
+          onClose={() => setShowLangModal(false)}
+          locale={langLocale}
+          setLocale={setLangLocale}
+          languages={languages}
+          setLanguages={setLanguages}
+        />
       </header>
 
       <NewProjectModal

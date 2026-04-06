@@ -2,6 +2,10 @@
 
 PINEVO CMS is a React and TypeScript editor for building PIN Evo and Flex device screen flows. The app lets you create projects, manage multiple screens, place UI components on the device canvas, configure hardware-button behavior, preview interactions, and export the result.
 
+## Multi-Language Support
+
+See [MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md) for details on how to use and manage translations in the CMS.
+
 ## Development
 
 Install dependencies and start the Vite development server:

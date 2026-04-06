@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { LanguageSection } from './LanguageSection';
+import { locales as initialLocales } from '../../locales';
+import type { Locale, Translations } from '../../locales/types';
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
 
@@ -6,6 +9,10 @@ export default function RightSidebar() {
   const { state, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig } = useCMS();
   const [localValues, setLocalValues] = useState(selectedComponent);
   const [showToast, setShowToast] = useState(false);
+
+  // Language management state
+  const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
+  const [locale, setLocale] = useState<Locale>('en');
 
   useEffect(() => {
     setLocalValues(selectedComponent);
@@ -102,6 +109,12 @@ export default function RightSidebar() {
                 Create
               </button>
             </section>
+            <LanguageSection
+              locale={locale}
+              setLocale={setLocale}
+              languages={languages}
+              setLanguages={setLanguages}
+            />
           </div>
 
           {showToast && (
@@ -127,6 +140,12 @@ export default function RightSidebar() {
           </svg>
           <p>Select a component to edit properties</p>
         </div>
+        <LanguageSection
+          locale={locale}
+          setLocale={setLocale}
+          languages={languages}
+          setLanguages={setLanguages}
+        />
       </aside>
     );
   }
