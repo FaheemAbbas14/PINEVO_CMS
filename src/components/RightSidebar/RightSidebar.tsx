@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LanguageSection } from './LanguageSection';
+// import { LanguageSection } from './LanguageSection';
 import { locales as initialLocales } from '../../locales';
 import type { Locale, Translations } from '../../locales/types';
 import { useCMS } from '../../context/AppContext';
@@ -11,8 +11,8 @@ export default function RightSidebar() {
   const [showToast, setShowToast] = useState(false);
 
   // Language management state
-  const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
-  const [locale, setLocale] = useState<Locale>('en');
+  // const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
+  // const [locale, setLocale] = useState<Locale>('en');
 
   useEffect(() => {
     setLocalValues(selectedComponent);
@@ -109,12 +109,12 @@ export default function RightSidebar() {
                 Create
               </button>
             </section>
-            <LanguageSection
+            {/* <LanguageSection
               locale={locale}
               setLocale={setLocale}
               languages={languages}
               setLanguages={setLanguages}
-            />
+            /> */}
           </div>
 
           {showToast && (
@@ -140,12 +140,12 @@ export default function RightSidebar() {
           </svg>
           <p>Select a component to edit properties</p>
         </div>
-        <LanguageSection
+        {/* <LanguageSection
           locale={locale}
           setLocale={setLocale}
           languages={languages}
           setLanguages={setLanguages}
-        />
+        /> */}
       </aside>
     );
   }
@@ -224,40 +224,8 @@ export default function RightSidebar() {
                   value={localValues.text || ''}
                   onChange={(e) => handleChange('text', e.target.value)}
                   style={{ flex: 1 }}
-                  list="language-keys-list"
-                  placeholder="Type or select key..."
+                  placeholder="Enter label or input text..."
                 />
-                <datalist id="language-keys-list">
-                  {Object.keys(languages[locale] || {}).map((key) => (
-                    <option key={key} value={key} />
-                  ))}
-                </datalist>
-                {(() => {
-                  const text = localValues.text || '';
-                  const key = text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-                  const alreadyExists = !!languages[locale][key];
-                  return (
-                    <button
-                      style={{ background: '#e0e7ff', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: alreadyExists ? 'not-allowed' : 'pointer', opacity: alreadyExists ? 0.5 : 1 }}
-                      title={alreadyExists ? 'Already added' : 'Add to language file'}
-                      onClick={() => {
-                        if (!text || alreadyExists) return;
-                        // Add to languages (in-memory)
-                        setLanguages({
-                          ...languages,
-                          [locale]: { ...languages[locale], [key]: text }
-                        });
-                        handleChange('text', `{t('${key}')}`);
-                      }}
-                      disabled={alreadyExists}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  );
-                })()}
               </div>
             </div>
             {selectedComponent.type === 'text_input' && (
