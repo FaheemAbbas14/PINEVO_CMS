@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LanguageManagementModal } from './LanguageManagementModal';
 import { locales as initialLocales } from '../../locales';
-import type { Locale, Translations } from '../../../locales/types';
+import type { Locale, Translations } from '../../locales/types.d';
 
 import { useCMS } from '../../context/AppContext';
 import { FEATURE_FLAGS } from '../../config/project';
@@ -154,13 +154,13 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
             </div>
 
             <div className="topbar-actions">
-              <button className="btn-save btn-compact" onClick={() => loadProject(setLanguages)} aria-label="Open project">
+              <button className="btn-save btn-compact" onClick={() => loadProject()} aria-label="Open project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
                 <span className="btn-text">Open</span>
               </button>
-              <button className="btn-save btn-compact" onClick={() => saveProject(languages)} aria-label="Save project">
+              <button className="btn-save btn-compact" onClick={() => saveProject()} aria-label="Save project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                   <polyline points="17 21 17 13 7 13 7 21" />
@@ -278,20 +278,34 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
           </div>
         )}
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              className="btn-save btn-compact"
-              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-              onClick={() => setShowLangModal(true)}
-              aria-label="Manage languages"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 4h16v2H4zM4 18h16v2H4zM4 8h16v8H4z" />
-                <circle cx="8" cy="12" r="1.5" />
-                <circle cx="16" cy="12" r="1.5" />
-              </svg>
-              <span>Languages</span>
-            </button>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Language selector dropdown */}
+          <label htmlFor="topbar-language-select" style={{ fontSize: 14, color: '#374151' }}>Language:</label>
+          <select
+            id="topbar-language-select"
+            value={langLocale}
+            onChange={e => setLangLocale(e.target.value as Locale)}
+            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 14 }}
+            aria-label="Select language"
+          >
+            {Object.keys(languages).map((lang) => (
+              <option key={lang} value={lang}>{lang.toUpperCase()}</option>
+            ))}
+          </select>
+          <button
+            className="btn-save btn-compact"
+            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => setShowLangModal(true)}
+            aria-label="Manage languages"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4h16v2H4zM4 18h16v2H4zM4 8h16v8H4z" />
+              <circle cx="8" cy="12" r="1.5" />
+              <circle cx="16" cy="12" r="1.5" />
+            </svg>
+            <span>Languages</span>
+          </button>
         </div>
 
         <LanguageManagementModal

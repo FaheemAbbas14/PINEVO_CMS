@@ -2,9 +2,7 @@
   "welcome": "Welcome",
   "pickup": "Press 1: to Pickup",
   "dropoff": "Press 2: to Drop off",
-  "save": "Save",
-  "delete": "Delete",
-  "project": "Project",
-  "screen": "Screen",
-  "settings": "Settings"
+  "courier_login": "Press 3: To Login Courier",
+  "change_theme": "Press 4: To Change Theme",
+  "change_language": "Press 5: To Change Language"
 }
