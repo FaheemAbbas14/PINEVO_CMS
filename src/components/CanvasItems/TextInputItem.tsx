@@ -6,7 +6,7 @@ import { useCMS } from '../../context/AppContext';
 import './CanvasItem.css';
 
 interface Props {
-    component: CanvasComponent;
+    readonly component: CanvasComponent;
 }
 
 export default function TextInputItem({ component }: Props) {
@@ -36,12 +36,12 @@ export default function TextInputItem({ component }: Props) {
         };
 
         // Listen for both keyboard events and custom hardware button events
-        window.addEventListener('keypress', handleKeyPress);
-        window.addEventListener('keydown', handleKeyPress);
+        globalThis.addEventListener('keypress', handleKeyPress);
+        globalThis.addEventListener('keydown', handleKeyPress);
 
         return () => {
-            window.removeEventListener('keypress', handleKeyPress);
-            window.removeEventListener('keydown', handleKeyPress);
+            globalThis.removeEventListener('keypress', handleKeyPress);
+            globalThis.removeEventListener('keydown', handleKeyPress);
         };
     }, [isPreviewMode, component.id, state.activeScreenId, state.screens]);
 
@@ -66,9 +66,9 @@ export default function TextInputItem({ component }: Props) {
             }
         };
 
-        window.addEventListener('hardwareButtonInput', handleHardwareInput as EventListener);
+        globalThis.addEventListener('hardwareButtonInput', handleHardwareInput as EventListener);
         return () => {
-            window.removeEventListener('hardwareButtonInput', handleHardwareInput as EventListener);
+            globalThis.removeEventListener('hardwareButtonInput', handleHardwareInput as EventListener);
         };
     }, [isPreviewMode, component.id, state.activeScreenId, state.screens]);
 
@@ -115,6 +115,13 @@ export default function TextInputItem({ component }: Props) {
                 e.stopPropagation();
                 selectComponent(component.id);
             }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    selectComponent(component.id);
+                }
+            }}
         >
             {isEditable ? (
                 <div className="text-input-content" style={{
@@ -122,7 +129,7 @@ export default function TextInputItem({ component }: Props) {
                     borderRadius: `${component.borderRadius || 8}px`,
                     color: component.color || '#1a1a2e',
                 }}>
-                    <span className="text-input-label">Input</span>
+                    <span className="text-input-label">{component.text || 'Input'}</span>
                     <span className="text-input-placeholder">{component.placeholder || 'Enter text...'}</span>
                 </div>
             ) : (

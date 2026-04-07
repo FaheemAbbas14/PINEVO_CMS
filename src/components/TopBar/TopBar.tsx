@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { LanguageManagementModal } from './LanguageManagementModal';
 import { locales as initialLocales } from '../../locales';
 import type { Locale, Translations } from '../../../locales/types';
-import { useLanguage } from '../../App';
+
 import { useCMS } from '../../context/AppContext';
 import { FEATURE_FLAGS } from '../../config/project';
 import type { DeployUIType } from '../../services/exportService';
@@ -11,7 +11,7 @@ import BLEModal from '../BLEMdal/BLEMdal';
 import './TopBar.css';
 
 interface TopBarProps {
-  onOpenSimulator?: () => void;
+  readonly onOpenSimulator?: () => void;
 }
 
 interface BLEDevice {
@@ -29,7 +29,7 @@ function getFirstEnabledDeployType(): DeployUIType {
 }
 
 export default function TopBar({ onOpenSimulator }: TopBarProps) {
-  const { locale, setLocale } = useLanguage();
+
   const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showBLEModal, setShowBLEModal] = useState(false);
@@ -53,6 +53,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
   const handleCreateProject = (name: string, type: 'pin_evo' | 'flex') => {
     clearSession(); // Clear any saved session data
     setProject({ name, type });
+    setLanguages(initialLocales); // Reset languages to default
     setShowNewProjectModal(false);
   };
 
@@ -153,13 +154,13 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
             </div>
 
             <div className="topbar-actions">
-              <button className="btn-save btn-compact" onClick={() => loadProject()} aria-label="Open project">
+              <button className="btn-save btn-compact" onClick={() => loadProject(setLanguages)} aria-label="Open project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                 </svg>
                 <span className="btn-text">Open</span>
               </button>
-              <button className="btn-save btn-compact" onClick={() => saveProject()} aria-label="Save project">
+              <button className="btn-save btn-compact" onClick={() => saveProject(languages)} aria-label="Save project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                   <polyline points="17 21 17 13 7 13 7 21" />

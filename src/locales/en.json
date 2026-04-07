@@ -1,7 +1,7 @@
 {
   "welcome": "Welcome",
-  "ok": "OK",
-  "cancel": "Cancel",
+  "pickup": "Press 1: to Pickup",
+  "dropoff": "Press 2: to Drop off",
   "save": "Save",
   "delete": "Delete",
   "project": "Project",

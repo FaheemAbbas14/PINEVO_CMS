@@ -216,13 +216,49 @@ export default function RightSidebar() {
         {(selectedComponent.type === 'text' || selectedComponent.type === 'text_input' || selectedComponent.type === 'button') && (
           <section className="property-group">
             <h3 className="group-title">Content & Style</h3>
-            <div className="property-field">
-              <label>Label / Input Text</label>
-              <input
-                type="text"
-                value={localValues.text || ''}
-                onChange={(e) => handleChange('text', e.target.value)}
-              />
+            <div className="property-field" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <label style={{ minWidth: 110, marginRight: 8 }}>Label / Input Text</label>
+              <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text"
+                  value={localValues.text || ''}
+                  onChange={(e) => handleChange('text', e.target.value)}
+                  style={{ flex: 1 }}
+                  list="language-keys-list"
+                  placeholder="Type or select key..."
+                />
+                <datalist id="language-keys-list">
+                  {Object.keys(languages[locale] || {}).map((key) => (
+                    <option key={key} value={key} />
+                  ))}
+                </datalist>
+                {(() => {
+                  const text = localValues.text || '';
+                  const key = text.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                  const alreadyExists = !!languages[locale][key];
+                  return (
+                    <button
+                      style={{ background: '#e0e7ff', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: alreadyExists ? 'not-allowed' : 'pointer', opacity: alreadyExists ? 0.5 : 1 }}
+                      title={alreadyExists ? 'Already added' : 'Add to language file'}
+                      onClick={() => {
+                        if (!text || alreadyExists) return;
+                        // Add to languages (in-memory)
+                        setLanguages({
+                          ...languages,
+                          [locale]: { ...languages[locale], [key]: text }
+                        });
+                        handleChange('text', `{t('${key}')}`);
+                      }}
+                      disabled={alreadyExists}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                  );
+                })()}
+              </div>
             </div>
             {selectedComponent.type === 'text_input' && (
               <div className="property-field">

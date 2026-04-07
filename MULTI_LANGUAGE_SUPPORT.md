@@ -7,6 +7,7 @@ PINEVO CMS supports multi-language UI projects. You can manage translations for 
 - **Translation Keys:** All UI text uses translation keys (e.g., `welcome`, `ok`, `submit`).
 - **Language Files:** Each language has a JSON file (e.g., `en.json`, `da.json`) with key-value pairs.
 - **CMS UI:** Users can add/edit translations for each language using the translation editor.
+- **Persistence:** All language changes are saved with your project file and restored when you open it.
 - **Export:** All language files are included in the deployment bundle.
 - **Firmware:** Loads the selected language file and looks up translation keys at runtime.
 

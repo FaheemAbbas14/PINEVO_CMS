@@ -95,6 +95,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
   },
 ];
 
+
 function DraggablePaletteItem({ item }: { item: PaletteItem }) {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.NEW_COMPONENT,

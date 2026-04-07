@@ -4,7 +4,7 @@ PINEVO CMS is a React and TypeScript editor for building PIN Evo and Flex device
 
 ## Multi-Language Support
 
-See [MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md) for details on how to use and manage translations in the CMS.
+All language changes (add/edit/delete keys, values, or languages) are saved with your project file and restored when you open it. See [MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md) for details.
 
 ## Development
 

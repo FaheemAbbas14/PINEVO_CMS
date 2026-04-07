@@ -93,7 +93,7 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
     case 'DELETE_SCREEN': {
       if (state.screens.length <= 1) return state;
       const remaining = state.screens.filter((s) => s.id !== action.payload);
-      const newActive = state.activeScreenId === action.payload ? remaining[remaining.length - 1].id : state.activeScreenId;
+      const newActive = state.activeScreenId === action.payload ? remaining.at(-1).id : state.activeScreenId;
       return { ...state, screens: remaining, activeScreenId: newActive, selectedComponentId: null };
     }
 
@@ -229,7 +229,7 @@ interface CMSContextValue {
 
 const CMSContext = createContext<CMSContextValue | null>(null);
 
-export function CMSProvider({ children }: { children: React.ReactNode }) {
+export function CMSProvider({ children }: { readonly children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cmsReducer, initialState);
   const currentProjectFileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
@@ -336,7 +336,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     };
 
     const json = JSON.stringify(projectData, null, 2);
-    const pickerWindow = window as any;
+    const pickerWindow = globalThis as any;
 
     try {
       if (typeof pickerWindow.showSaveFilePicker === 'function') {
@@ -344,7 +344,7 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
 
         if (!handle) {
           handle = await pickerWindow.showSaveFilePicker({
-            suggestedName: `${state.project.name.replace(/\s+/g, '_')}_project.json`,
+            suggestedName: `${state.project.name.replaceAll(' ', '_')}_project.json`,
             types: [{
               description: 'JSON Files',
               accept: { 'application/json': ['.json'] },
@@ -373,13 +373,13 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${state.project.name.replace(/\s+/g, '_')}_project.json`;
+    a.download = `${state.project.name.replaceAll(' ', '_')}_project.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [state.project, state.screens, state.activeScreenId, state.sandboxConfig]);
 
   const loadProject = useCallback(() => {
-    const pickerWindow = window as any;
+    const pickerWindow = globalThis as any;
 
     if (typeof pickerWindow.showOpenFilePicker === 'function') {
       void (async () => {
@@ -501,35 +501,34 @@ export function CMSProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state]);
 
+  const contextValue = React.useMemo(() => ({
+    state,
+    activeScreen,
+    selectedComponent,
+    setProject,
+    addScreen,
+    deleteScreen,
+    renameScreen,
+    setActiveScreen,
+    addComponent,
+    updateComponent,
+    deleteComponent,
+    selectComponent,
+    moveComponent,
+    downloadExportZip,
+    saveScreens,
+    saveAsHtml,
+    saveProject,
+    loadProject,
+    setSandboxMode,
+    setPreviewMode,
+    updateSandboxConfig,
+    resetSandboxConfig,
+    updateScreenHardwareButton,
+    clearSession,
+  }), [state, activeScreen, selectedComponent, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, addComponent, updateComponent, deleteComponent, selectComponent, moveComponent, downloadExportZip, saveScreens, saveAsHtml, saveProject, loadProject, setSandboxMode, setPreviewMode, updateSandboxConfig, resetSandboxConfig, updateScreenHardwareButton, clearSession]);
   return (
-    <CMSContext.Provider
-      value={{
-        state,
-        activeScreen,
-        selectedComponent,
-        setProject,
-        addScreen,
-        deleteScreen,
-        renameScreen,
-        setActiveScreen,
-        addComponent,
-        updateComponent,
-        deleteComponent,
-        selectComponent,
-        moveComponent,
-        downloadExportZip,
-        saveScreens,
-        saveAsHtml,
-        saveProject,
-        loadProject,
-        setSandboxMode,
-        setPreviewMode,
-        updateSandboxConfig,
-        resetSandboxConfig,
-        updateScreenHardwareButton,
-        clearSession,
-      }}
-    >
+    <CMSContext.Provider value={contextValue}>
       {children}
     </CMSContext.Provider>
   );

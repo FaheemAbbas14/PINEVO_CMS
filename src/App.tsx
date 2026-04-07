@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import React, { useState, createContext, useContext, useMemo } from 'react';
 import { DndProvider } from 'react-dnd';
-import { createContext, useContext } from 'react';
 import { locales } from './locales';
-import type { Locale, Translations } from './locales/types';
+import type { Locale } from './locales/types';
 // --- Language Context and Provider ---
 type LanguageContextType = {
   locale: Locale;
@@ -18,11 +17,13 @@ export function useLanguage() {
   return ctx;
 }
 
-function LanguageProvider({ children }: { children: React.ReactNode }) {
+function LanguageProvider({ children }: { readonly children: React.ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en');
-  const t = (key: string) => locales[locale][key] || key;
+  // Add index signature to locales for dynamic key access
+  const t = (key: string) => (locales as Record<string, Record<string, string>>)[locale][key] || key;
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale]);
   return (
-    <LanguageContext.Provider value={{ locale, setLocale, t }}>
+    <LanguageContext.Provider value={value}>
       {children}
     </LanguageContext.Provider>
   );
@@ -188,11 +189,6 @@ function App() {
         <AppContent />
       </CMSProvider>
     </LanguageProvider>
-  );
-  return (
-    <CMSProvider>
-      <AppContent />
-    </CMSProvider>
   );
 }
 

@@ -59,7 +59,7 @@ export default function TextItem({ component }: Props) {
         selectComponent(component.id);
       }}
     >
-      {component.text}
+      {component.text || ''}
     </div>
   );
 }

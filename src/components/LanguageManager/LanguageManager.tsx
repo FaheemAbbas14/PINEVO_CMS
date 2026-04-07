@@ -1,15 +1,19 @@
-        {/* Add translation key/value section moved below useState hooks */}
 import React, { useState } from 'react';
+import en from '../../locales/en.json';
+import da from '../../locales/da.json';
 import type { Locale, Translations } from '../../locales/types';
 
 interface LanguageManagerProps {
   currentLocale: Locale;
-  setLocale: (locale: Locale) => void;
   languages: { [key: string]: Translations };
   setLanguages: (langs: { [key: string]: Translations }) => void;
 }
 
-export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale, setLocale, languages, setLanguages }) => {
+export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale, languages, setLanguages }) => {
+      // State for adding new key/value
+      const [newKey, setNewKey] = useState('');
+      const [newValue, setNewValue] = useState('');
+      const [addError, setAddError] = useState('');
     // Edit translation key
     const handleEditTranslation = (key: string) => {
       setEditingKey(key);
@@ -17,15 +21,22 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
       setEditValueValue(translationValues[key] || '');
     };
 
-    // Delete translation key
+
+    // Delete translation key and persist to file (in-memory for browser)
     const handleDeleteTranslation = (key: string) => {
       const updated: Translations = { ...translationValues };
       delete updated[key];
       setLanguages({ ...languages, [selectedLang]: updated });
+      // Simulate file update (in-memory only)
+      if (selectedLang === 'en') {
+        Object.assign(en, updated);
+      } else if (selectedLang === 'da') {
+        Object.assign(da, updated);
+      }
       if (editingKey === key) setEditingKey(null);
     };
 
-    // Save translation key edits
+    // Save translation key edits and persist to file (in-memory for browser)
     const handleSaveTranslation = (oldKey: string) => {
       let updated: Translations = { ...translationValues };
       // If key changed, delete old and add new
@@ -34,50 +45,17 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
       }
       updated[editKeyValue] = editValueValue;
       setLanguages({ ...languages, [selectedLang]: updated });
+      // Simulate file update (in-memory only)
+      if (selectedLang === 'en') {
+        Object.assign(en, updated);
+      } else if (selectedLang === 'da') {
+        Object.assign(da, updated);
+      }
       setEditingKey(null);
       setEditKeyValue('');
       setEditValueValue('');
     };
-  const [newLang, setNewLang] = useState('');
-  const [editLang, setEditLang] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
   const [selectedLang, setSelectedLang] = useState<string>(currentLocale);
-
-  // Add new language
-  const handleAddLanguage = () => {
-    if (!newLang.trim() || languages[newLang]) return;
-    setLanguages({ ...languages, [newLang]: {} });
-    setNewLang('');
-  };
-
-  // Delete language
-  const handleDeleteLanguage = (lang: string) => {
-    if (Object.keys(languages).length <= 1) return;
-    const updated = { ...languages };
-    delete updated[lang];
-    setLanguages(updated);
-    if (selectedLang === lang) setSelectedLang(Object.keys(updated)[0]);
-    if (currentLocale === lang) setLocale(Object.keys(updated)[0] as Locale);
-  };
-
-  // Edit language name
-  const handleEditLanguage = (lang: string) => {
-    setEditLang(lang);
-    setEditValue(lang);
-  };
-
-  const handleSaveEdit = () => {
-    if (!editLang || !editValue.trim() || languages[editValue]) return;
-    const updated: { [key: string]: Translations } = {};
-    Object.entries(languages).forEach(([k, v]) => {
-      updated[k === editLang ? editValue : k] = v;
-    });
-    setLanguages(updated);
-    if (selectedLang === editLang) setSelectedLang(editValue);
-    if (currentLocale === editLang) setLocale(editValue as Locale);
-    setEditLang(null);
-    setEditValue('');
-  };
 
   // Get keys for selected language
   const translationKeys = Object.keys(languages[selectedLang] || {});
@@ -88,8 +66,6 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editKeyValue, setEditKeyValue] = useState('');
   const [editValueValue, setEditValueValue] = useState('');
-  const [newTransKey, setNewTransKey] = useState('');
-  const [newTransValue, setNewTransValue] = useState('');
 
   return (
     <div className="language-manager">
@@ -106,14 +82,49 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
           ))}
         </select>
       </div>
-      <div>
+
+      {/* Add new key/value form */}
+      <form
+        onSubmit={e => {
+          e.preventDefault();
+          if (!newKey.trim() || !newValue.trim()) {
+            setAddError('Key and value are required.');
+            return;
+          }
+          if (translationKeys.includes(newKey)) {
+            setAddError('Key already added');
+            return;
+          }
+          const updated: Translations = { ...translationValues, [newKey]: newValue };
+          setLanguages({ ...languages, [selectedLang]: updated });
+          if (selectedLang === 'en') {
+            Object.assign(en, updated);
+          } else if (selectedLang === 'da') {
+            Object.assign(da, updated);
+          }
+          setNewKey('');
+          setNewValue('');
+          setAddError('');
+        }}
+        style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}
+      >
         <input
-          placeholder="Add language (e.g., fr)"
-          value={newLang}
-          onChange={e => setNewLang(e.target.value)}
+          type="text"
+          placeholder="Key"
+          value={newKey}
+          onChange={e => setNewKey(e.target.value)}
+          style={{ flex: 1, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
         />
-        <button onClick={handleAddLanguage}>Add</button>
-      </div>
+        <input
+          type="text"
+          placeholder="Value"
+          value={newValue}
+          onChange={e => setNewValue(e.target.value)}
+          style={{ flex: 2, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
+        />
+        <button type="submit" style={{ padding: '6px 14px', borderRadius: 4, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 500, cursor: 'pointer' }}>Add</button>
+        {addError && <span style={{ color: 'red', fontSize: 12 }}>{addError}</span>}
+      </form>
 
       <div style={{ marginTop: 20 }}>
         <h4>Translation Keys for "{selectedLang}"</h4>
@@ -148,8 +159,10 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
                         />
                       </td>
                       <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>
-                        <button onClick={() => handleSaveTranslation(key)} style={{ marginRight: 4 }}>Save</button>
-                        <button onClick={() => setEditingKey(null)}>Cancel</button>
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+                          <button onClick={() => handleSaveTranslation(key)} style={{ marginRight: 0 }}>Save</button>
+                          <button onClick={() => setEditingKey(null)}>Cancel</button>
+                        </div>
                       </td>
                     </>
                   ) : (
@@ -157,8 +170,22 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
                       <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{key}</td>
                       <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>{translationValues[key]}</td>
                       <td style={{ padding: '4px 8px', borderBottom: '1px solid #f3f4f6' }}>
-                        <button onClick={() => handleEditTranslation(key)} style={{ marginRight: 4 }}>Edit</button>
-                        <button onClick={() => handleDeleteTranslation(key)}>Delete</button>
+                        <div style={{ display: 'flex', flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
+                          <button onClick={() => handleEditTranslation(key)} title="Edit">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+                            </svg>
+                          </button>
+                          <button onClick={() => handleDeleteTranslation(key)} title="Delete">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                              <path d="M9 6V4h6v2" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </>
                   )}
