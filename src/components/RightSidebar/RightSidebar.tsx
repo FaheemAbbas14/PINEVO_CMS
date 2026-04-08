@@ -105,11 +105,16 @@ export default function RightSidebar() {
   const [newLangKey, setNewLangKey] = useState('');
   const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>({});
   const [langTargetField, setLangTargetField] = useState<string>('');
-  const allLangKeys = getAllLangKeys(languages);
+  const [allLangKeys, setAllLangKeys] = useState<string[]>(getAllLangKeys(languages));
 
   useEffect(() => {
     if (selectedComponent) setLocalValues(selectedComponent);
   }, [selectedComponent]);
+
+  // Update allLangKeys when languages change
+  useEffect(() => {
+    setAllLangKeys(getAllLangKeys(languages));
+  }, [languages]);
 
   // When language changes, update localValues to force re-render of language key dropdowns and preview text
   useEffect(() => {
@@ -287,6 +292,7 @@ export default function RightSidebar() {
       updatedLangs[lang][newLangKey] = newLangValues[lang] || '';
     });
     setLanguages(updatedLangs);
+    setAllLangKeys(getAllLangKeys(updatedLangs));
     handleChange(langTargetField, newLangKey);
     setShowLangModal(false);
     try {

@@ -1075,7 +1075,7 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
 
 export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBundle> {
   const zip = new JSZip();
-  const uiFolder = zip.folder('ui');
+  const uiFolder = zip.folder('ui/html');
   const screenFileNames = buildScreenFileMap(state.screens, 'html');
   const targetByScreenId = buildScreenTargetMap(state.screens);
   const assetRegistry = await collectEmbeddedAssets(state.screens);
@@ -1085,8 +1085,12 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   }
 
   // Add language files
-  uiFolder.file('languages/en.json', JSON.stringify(enLocale, null, 2));
-  uiFolder.file('languages/da.json', JSON.stringify(daLocale, null, 2));
+  const langFolder = uiFolder.folder('lang');
+  if (!langFolder) {
+    throw new Error('Failed to create lang export folder.');
+  }
+  langFolder.file('en.json', JSON.stringify(enLocale, null, 2));
+  langFolder.file('da.json', JSON.stringify(daLocale, null, 2));
 
   // Add config with supported languages
   const config = {
