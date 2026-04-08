@@ -108,7 +108,8 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
     case 'DELETE_SCREEN': {
       if (state.screens.length <= 1) return state;
       const remaining = state.screens.filter((s) => s.id !== action.payload);
-      const newActive = state.activeScreenId === action.payload ? remaining.at(-1).id : state.activeScreenId;
+      const lastScreen = remaining.at(-1);
+      const newActive = state.activeScreenId === action.payload ? (lastScreen ? lastScreen.id : state.activeScreenId) : state.activeScreenId;
       return { ...state, screens: remaining, activeScreenId: newActive, selectedComponentId: null };
     }
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LanguageManagementModal } from './LanguageManagementModal';
 import { locales as initialLocales } from '../../locales';
 import type { Locale, Translations } from '../../locales/types.d';
+import { useLanguage } from '../../App';
 
 import { useCMS } from '../../context/AppContext';
 import { FEATURE_FLAGS } from '../../config/project';
@@ -42,7 +43,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
     // Language management modal state
     const [showLangModal, setShowLangModal] = useState(false);
     const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
-    const [langLocale, setLangLocale] = useState<Locale>('en');
+    const { locale, setLocale } = useLanguage();
 
   const handleBLEConnect = (device: BLEDevice) => {
     setBleDevice(device);
@@ -290,8 +291,8 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
           <label htmlFor="topbar-language-select" style={{ fontSize: 14, color: '#374151' }}>Language:</label>
           <select
             id="topbar-language-select"
-            value={langLocale}
-            onChange={e => setLangLocale(e.target.value as Locale)}
+            value={locale}
+            onChange={e => setLocale(e.target.value as Locale)}
             style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 14 }}
             aria-label="Select language"
           >
@@ -317,8 +318,7 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
         <LanguageManagementModal
           isOpen={showLangModal}
           onClose={() => setShowLangModal(false)}
-          locale={langLocale}
-          setLocale={setLangLocale}
+          locale={locale}
           languages={languages}
           setLanguages={setLanguages}
         />

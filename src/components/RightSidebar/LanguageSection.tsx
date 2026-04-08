@@ -1,22 +1,20 @@
 import React from 'react';
 import { LanguageManager } from '../LanguageManager/LanguageManager';
 import '../LanguageManager/LanguageManager.css';
-import type { Locale, Translations } from '../../../locales/types';
+import type { Locale, Translations } from '../../locales/types.d';
 
 interface LanguageSectionProps {
   locale: Locale;
-  setLocale: (locale: Locale) => void;
   languages: { [key: string]: Translations };
   setLanguages: (langs: { [key: string]: Translations }) => void;
 }
 
-export const LanguageSection: React.FC<LanguageSectionProps> = ({ locale, setLocale, languages, setLanguages }) => {
+export const LanguageSection: React.FC<LanguageSectionProps> = ({ locale, languages, setLanguages }) => {
   return (
     <section className="property-group">
       <h3 className="group-title">Language Management</h3>
       <LanguageManager
         currentLocale={locale}
-        setLocale={setLocale}
         languages={languages}
         setLanguages={setLanguages}
       />

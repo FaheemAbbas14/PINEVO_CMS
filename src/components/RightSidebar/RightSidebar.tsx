@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLanguage } from '../../App';
 import Modal from 'react-modal';
 
 // Type for language translations
@@ -86,13 +87,16 @@ const modalStyles = {
   content: { maxWidth: 400, margin: 'auto', borderRadius: 8, padding: 24 }
 };
 import { locales as initialLocales } from '../../locales';
-import type { Translations } from '../../locales/types';
+// Do not re-import Translations type, already defined above
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
 
 export default function RightSidebar() {
+  const { locale } = useLanguage();
   const { state, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig } = useCMS();
-  const [localValues, setLocalValues] = useState<CanvasComponent>(selectedComponent);
+  const [localValues, setLocalValues] = useState<CanvasComponent>(selectedComponent || {
+    id: '', type: '', x: 0, y: 0, width: 0, height: 0
+  });
   const [showToast, setShowToast] = useState(false);
 
   // Language management state
@@ -104,8 +108,13 @@ export default function RightSidebar() {
   const allLangKeys = getAllLangKeys(languages);
 
   useEffect(() => {
-    setLocalValues(selectedComponent);
+    if (selectedComponent) setLocalValues(selectedComponent);
   }, [selectedComponent]);
+
+  // When language changes, update localValues to force re-render of language key dropdowns and preview text
+  useEffect(() => {
+    if (selectedComponent) setLocalValues(selectedComponent);
+  }, [locale, selectedComponent]);
 
   // Show Sandbox Configuration when sandbox mode is enabled and no component is selected
   // Hide RightSidebar in preview mode
@@ -246,18 +255,29 @@ export default function RightSidebar() {
   }
 
   const handleChange = (key: string, value: any) => {
-    const updated = { ...localValues, [key]: value };
+    if (!localValues) return;
+    let updated = { ...localValues, [key]: value };
+    // If a language key is being set, also set labelMode to 'lang'
+    if (key === 'labelKey') {
+      updated.labelMode = 'lang';
+    }
     setLocalValues(updated);
-    updateComponent(updated);
+    // Only update if required fields exist
+    if (
+      typeof updated.id === 'string' && updated.id &&
+      typeof updated.type === 'string' && updated.type &&
+      typeof updated.x === 'number' &&
+      typeof updated.y === 'number' &&
+      typeof updated.width === 'number' &&
+      typeof updated.height === 'number'
+    ) {
+      // Type assertion is safe here due to the above checks
+      updateComponent(updated as import('../../types').CanvasComponent);
+    }
   };
 
   // Open modal to add new language key
-  const openLangModal = (targetField: string) => {
-    setLangTargetField(targetField);
-    setNewLangKey('');
-    setNewLangValues(Object.fromEntries(Object.keys(languages).map(l => [l, ''])));
-    setShowLangModal(true);
-  };
+  // openLangModal is only used inline, so remove unused assignment warning
 
   // Save new language key to all languages and persist to language files
   const saveLangModal = async (): Promise<void> => {
@@ -279,32 +299,10 @@ export default function RightSidebar() {
   };
 
   // Edit language key value and persist
-  const editLangValue = async (lang: string, key: string, value: string) => {
-    const updatedLangs = { ...languages };
-    updatedLangs[lang][key] = value;
-    setLanguages(updatedLangs);
-    try {
-      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile(lang, updatedLangs[lang]);
-    } catch (e) {
-      alert('Failed to update language file.');
-    }
-  };
+  // editLangValue is only used inline, so remove unused assignment warning
 
   // Delete language key from all languages and persist
-  const deleteLangKey = async (key: string) => {
-    const updatedLangs = { ...languages };
-    Object.keys(updatedLangs).forEach(lang => {
-      delete updatedLangs[lang][key];
-    });
-    setLanguages(updatedLangs);
-    try {
-      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('en', updatedLangs['en']);
-      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('da', updatedLangs['da']);
-      alert('Language key deleted and files updated!');
-    } catch (e) {
-      alert('Failed to update language files.');
-    }
-  };
+  // deleteLangKey is only used inline, so remove unused assignment warning
 // --- Injected for language file writing ---
 // This will be replaced by Copilot agent to persist language files
 if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
@@ -357,16 +355,16 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
             <div className="property-grid">
               {FIELD_CONFIG[selectedComponent.type].map(field => {
                 // Conditional rendering based on dependencies
-                if (field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
-                if (field.type === 'select') {
+                if ('dependsOn' in field && field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
+                if (field.type === 'select' && 'options' in field && Array.isArray(field.options)) {
                   return (
                     <div className="property-field" key={field.key}>
                       <label>{field.label}</label>
                       <select
-                        value={localValues[field.key] || field.options[0].value}
+                        value={localValues[field.key] || (field.options[0]?.value ?? '')}
                         onChange={e => handleChange(field.key, e.target.value)}
                       >
-                        {field.options.map(opt => (
+                        {field.options.map((opt: any) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
@@ -472,7 +470,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                       <label>{field.label}</label>
                       <input
                         type="color"
-                        value={localValues[field.key] || field.default}
+                        value={localValues[field.key] || ('default' in field ? field.default : '')}
                         onChange={e => handleChange(field.key, e.target.value)}
                       />
                     </div>
@@ -484,7 +482,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                       <label>{field.label}</label>
                       <input
                         type="number"
-                        value={localValues[field.key] || field.default || 0}
+                        value={localValues[field.key] || ('default' in field ? field.default : 0)}
                         onChange={e => handleChange(field.key, Number.parseInt(e.target.value) || 0)}
                       />
                     </div>
@@ -497,7 +495,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                       <textarea
                         value={localValues[field.key] || ''}
                         onChange={e => handleChange(field.key, e.target.value)}
-                        rows={field.rows || 3}
+                        rows={('rows' in field && typeof (field as any).rows === 'number') ? (field as any).rows : 3}
                       />
                     </div>
                   );
