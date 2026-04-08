@@ -8,6 +8,7 @@ import './CanvasItem.css';
 
 interface Props {
   component: CanvasComponent;
+  locale?: string;
 }
 
 export default function TextItem({ component }: Props) {

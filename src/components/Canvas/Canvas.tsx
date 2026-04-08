@@ -5,6 +5,7 @@ import { DragTypes, PIN_EVO_CANVAS_WIDTH, PIN_EVO_CANVAS_HEIGHT, FLEX_CANVAS_WID
 import type { NewComponentDragItem, ExistingComponentDragItem, CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import TextItem from '../CanvasItems/TextItem';
+import { useLanguage } from '../../App';
 import TextInputItem from '../CanvasItems/TextInputItem';
 import ButtonItem from '../CanvasItems/ButtonItem';
 import ImageItem from '../CanvasItems/ImageItem';
@@ -35,6 +36,7 @@ function getDefaultComponentProps(type: string): Partial<CanvasComponent> {
 }
 
 export default function Canvas() {
+  const { locale } = useLanguage();
   const { state, activeScreen, addComponent, moveComponent, selectComponent } = useCMS();
   const canvasRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -132,7 +134,7 @@ export default function Canvas() {
         )}
 
         {activeScreen?.components.map((component) => {
-          if (component.type === 'text') return <TextItem key={component.id} component={component} />;
+          if (component.type === 'text') return <TextItem key={component.id + '-' + locale} component={component} locale={locale} />;
           if (component.type === 'text_input') return <TextInputItem key={component.id} component={component} />;
           if (component.type === 'button') return <ButtonItem key={component.id} component={component} />;
           if (component.type === 'image') return <ImageItem key={component.id} component={component} />;

@@ -420,6 +420,17 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
             return;
           }
 
+          // Patch: Ensure all text components with labelKey have labelMode: 'lang'
+          importedState.screens.forEach((screen: any) => {
+            if (Array.isArray(screen.components)) {
+              screen.components.forEach((component: any) => {
+                if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
+                  component.labelMode = 'lang';
+                }
+              });
+            }
+          });
+
           currentProjectFileHandleRef.current = handle;
           dispatch({ type: 'SET_PROJECT', payload: importedState.project });
           dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
@@ -454,6 +465,16 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
         }
 
         currentProjectFileHandleRef.current = null;
+        // Patch: Ensure all text components with labelKey have labelMode: 'lang'
+        importedState.screens.forEach((screen: any) => {
+          if (Array.isArray(screen.components)) {
+            screen.components.forEach((component: any) => {
+              if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
+                component.labelMode = 'lang';
+              }
+            });
+          }
+        });
         // Load the project data
         dispatch({ type: 'SET_PROJECT', payload: importedState.project });
         dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
