@@ -30,7 +30,7 @@ function getFirstEnabledDeployType(): DeployUIType {
 
 export default function TopBar({ onOpenSimulator }: TopBarProps) {
 
-  const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession } = useCMS();
+  const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showBLEModal, setShowBLEModal] = useState(false);
   const [bleDevice, setBleDevice] = useState<BLEDevice | null>(null);
@@ -160,7 +160,13 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
                 </svg>
                 <span className="btn-text">Open</span>
               </button>
-              <button className="btn-save btn-compact" onClick={() => saveProject()} aria-label="Save project">
+              <button className="btn-save btn-compact" onClick={() => {
+                // Ensure any pending sidebar edits are committed before saving
+                if (selectedComponent) {
+                  updateComponent(selectedComponent);
+                }
+                saveProject();
+              }} aria-label="Save project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                   <polyline points="17 21 17 13 7 13 7 21" />

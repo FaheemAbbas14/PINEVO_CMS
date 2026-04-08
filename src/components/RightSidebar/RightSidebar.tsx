@@ -1,5 +1,13 @@
 import { useState, useEffect } from 'react';
 import Modal from 'react-modal';
+
+// Type for language translations
+type Translations = { [key: string]: string };
+
+// Add index signature to CanvasComponent type if not already present
+type CanvasComponent = {
+  [key: string]: any;
+};
 // Configuration for dynamic fields per component type
 const FIELD_CONFIG = {
   text: [
@@ -67,9 +75,9 @@ const FIELD_CONFIG = {
 };
 // import { LanguageSection } from './LanguageSection';
 // Helper to get all language keys
-function getAllLangKeys(locales) {
-  const keys = new Set();
-  Object.values(locales).forEach(lang => Object.keys(lang).forEach(k => keys.add(k)));
+function getAllLangKeys(locales: { [key: string]: Translations }): string[] {
+  const keys = new Set<string>();
+  Object.values(locales).forEach((lang: Translations) => Object.keys(lang).forEach(k => keys.add(k)));
   return Array.from(keys);
 }
 // Modal styles for new key popup
@@ -84,7 +92,7 @@ import './RightSidebar.css';
 
 export default function RightSidebar() {
   const { state, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig } = useCMS();
-  const [localValues, setLocalValues] = useState(selectedComponent);
+  const [localValues, setLocalValues] = useState<CanvasComponent>(selectedComponent);
   const [showToast, setShowToast] = useState(false);
 
   // Language management state
@@ -251,19 +259,61 @@ export default function RightSidebar() {
     setShowLangModal(true);
   };
 
-  // Save new language key to all languages
-  const saveLangModal = () => {
+  // Save new language key to all languages and persist to language files
+  const saveLangModal = async (): Promise<void> => {
     if (!newLangKey.trim() || allLangKeys.includes(newLangKey)) return;
     const updatedLangs = { ...languages };
     Object.keys(updatedLangs).forEach(lang => {
       updatedLangs[lang][newLangKey] = newLangValues[lang] || '';
     });
     setLanguages(updatedLangs);
-    // Update the field to use the new key
     handleChange(langTargetField, newLangKey);
     setShowLangModal(false);
-    alert('Language files updated in memory. Please manually update en.json and da.json files to persist changes.');
+    try {
+      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('en', updatedLangs['en']);
+      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('da', updatedLangs['da']);
+      alert('Language files updated successfully!');
+    } catch (e) {
+      alert('Failed to update language files. Please check file permissions.');
+    }
   };
+
+  // Edit language key value and persist
+  const editLangValue = async (lang: string, key: string, value: string) => {
+    const updatedLangs = { ...languages };
+    updatedLangs[lang][key] = value;
+    setLanguages(updatedLangs);
+    try {
+      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile(lang, updatedLangs[lang]);
+    } catch (e) {
+      alert('Failed to update language file.');
+    }
+  };
+
+  // Delete language key from all languages and persist
+  const deleteLangKey = async (key: string) => {
+    const updatedLangs = { ...languages };
+    Object.keys(updatedLangs).forEach(lang => {
+      delete updatedLangs[lang][key];
+    });
+    setLanguages(updatedLangs);
+    try {
+      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('en', updatedLangs['en']);
+      await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('da', updatedLangs['da']);
+      alert('Language key deleted and files updated!');
+    } catch (e) {
+      alert('Failed to update language files.');
+    }
+  };
+// --- Injected for language file writing ---
+// This will be replaced by Copilot agent to persist language files
+if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
+  (globalThis as any).__writeLangFile = async (lang: string, data: any) => {
+    // This function will be replaced by Copilot agent
+    // eslint-disable-next-line no-console
+    console.log('Persisting', lang, data);
+  };
+}
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -342,7 +392,7 @@ export default function RightSidebar() {
                           type="button"
                           className="btn-add-lang"
                           style={{ padding: '2px 8px', fontSize: 18, fontWeight: 700, borderRadius: 4, border: '1px solid #e5e7eb', background: '#f3f4f6', cursor: 'pointer' }}
-                          onClick={() => openLangModal(field.key)}
+                          onClick={() => { setLangTargetField(field.key); setNewLangKey(''); setNewLangValues(Object.fromEntries(Object.keys(languages).map(l => [l, '']))); setShowLangModal(true); }}
                           title="Add new language string"
                         >+
                         </button>

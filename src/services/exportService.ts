@@ -587,6 +587,8 @@ function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize:
     color: '#64748b',
     font_src: '',
     text: `UI: ${format.toUpperCase()}`,
+    labelKey: undefined,
+    labelMode: undefined,
   };
 }
 
@@ -605,6 +607,8 @@ function buildFirmwareJsonComponent(
       color: component.color || '#1a1a2e',
       font_src: '',
       text: component.text || '',
+      labelKey: component.labelKey,
+      labelMode: component.labelMode,
     };
   }
 
@@ -661,6 +665,10 @@ function buildFirmwareJsonComponent(
       text: component.text || '',
       placeholder: component.placeholder || '',
       border_radius: component.borderRadius || 8,
+      labelKey: component.labelKey,
+      labelMode: component.labelMode,
+      placeholderKey: component.placeholderKey,
+      placeholderMode: component.placeholderMode,
     };
   }
 
@@ -728,6 +736,8 @@ function renderFirmwareComponent(
       ['color', component.color || '#1a1a2e'],
       ['font_src', ''],
       ['text', component.text || ''],
+      ['data-label-key', component.labelKey],
+      ['data-label-mode', component.labelMode],
     ]);
   }
 
@@ -780,6 +790,10 @@ function renderFirmwareComponent(
       ['text', component.text || ''],
       ['placeholder', component.placeholder || ''],
       ['border_radius', component.borderRadius || 8],
+      ['data-label-key', component.labelKey],
+      ['data-label-mode', component.labelMode],
+      ['data-placeholder-key', component.placeholderKey],
+      ['data-placeholder-mode', component.placeholderMode],
     ]);
   }
 
@@ -1027,6 +1041,17 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
     throw new Error('Failed to create json export folder.');
   }
 
+  // Add language files
+  jsonFolder.file('languages/en.json', JSON.stringify(enLocale, null, 2));
+  jsonFolder.file('languages/da.json', JSON.stringify(daLocale, null, 2));
+
+  // Add config with supported languages
+  const config = {
+    ...EXPORT_CONFIG,
+    supportedLanguages: ['en', 'da'],
+  };
+  jsonFolder.file('config.json', JSON.stringify(config, null, 2));
+
   state.screens.forEach((screen) => {
     const target = targetByScreenId.get(screen.id);
     const fileName = target ? `${target}.json` : undefined;
@@ -1058,6 +1083,17 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   if (!uiFolder) {
     throw new Error('Failed to create ui export folder.');
   }
+
+  // Add language files
+  uiFolder.file('languages/en.json', JSON.stringify(enLocale, null, 2));
+  uiFolder.file('languages/da.json', JSON.stringify(daLocale, null, 2));
+
+  // Add config with supported languages
+  const config = {
+    ...EXPORT_CONFIG,
+    supportedLanguages: ['en', 'da'],
+  };
+  uiFolder.file('config.json', JSON.stringify(config, null, 2));
 
   uiFolder.file('index.html', generateIndexHtml(state, screenFileNames));
   uiFolder.file('project.json', generateJsonExport(state));
