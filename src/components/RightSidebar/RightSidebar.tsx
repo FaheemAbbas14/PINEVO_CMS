@@ -383,7 +383,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                         >
                           <option value="">Select text</option>
                           {allLangKeys.map(key => (
-                            <option key={key} value={key}>{key} ({languages['en'][key] || ''})</option>
+                            <option key={key} value={key}>{key} ({languages[locale][key] || ''})</option>
                           ))}
                         </select>
                         <button
