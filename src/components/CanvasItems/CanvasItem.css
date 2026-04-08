@@ -22,9 +22,12 @@
 
 .text-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   overflow: hidden;
   white-space: nowrap;
+  text-align: left;
+  padding-left: 8px;
 }
 
 .button-item button {

@@ -59,6 +59,11 @@ export default function TextItem({ component }: Props) {
         color: component.color,
         fontSize: `${component.fontSize}px`,
         fontWeight: component.fontWeight || 'normal',
+        textAlign: 'left',
+        justifyContent: 'flex-start',
+        alignItems: 'flex-start',
+        display: 'flex',
+        paddingLeft: 8,
       }}
       onClick={(e) => {
         e.stopPropagation();
