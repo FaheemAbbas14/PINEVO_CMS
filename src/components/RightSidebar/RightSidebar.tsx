@@ -1,7 +1,84 @@
 import { useState, useEffect } from 'react';
+import Modal from 'react-modal';
+// Configuration for dynamic fields per component type
+const FIELD_CONFIG = {
+  text: [
+    { key: 'labelKey', label: 'Text', type: 'langKey' },
+    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'fontWeight', label: 'Font Weight', type: 'select', options: [{ value: 'normal', label: 'Normal' }, { value: 'bold', label: 'Bold' }] },
+  ],
+  text_input: [
+    { key: 'labelKey', label: 'Label', type: 'langKey' },
+    { key: 'placeholderKey', label: 'Placeholder', type: 'langKey' },
+    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'bgColor', label: 'Background', type: 'color', default: '#ffffff' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
+  ],
+  button: [
+    { key: 'labelKey', label: 'Text', type: 'langKey' },
+    { key: 'goToScreen', label: 'Go to Screen', type: 'screenSelect' },
+    { key: 'function', label: 'Function', type: 'select', options: [
+      { value: 'none', label: 'None' },
+      { value: 'connect', label: 'Connect' },
+      { value: 'open_door', label: 'Open Door' },
+      { value: 'initiate_multi_connect', label: 'Initiate Multi-Connect' },
+      { value: 'turn_on_modem', label: 'Turn-on Modem' },
+      { value: 'dial_up_modem', label: 'Dial-up Modem' },
+      { value: 'goto_screen', label: 'Goto Screen' },
+      { value: 'play_audio', label: 'Play Audio' },
+      { value: 'api_call', label: 'API Call' },
+      { value: 'change_theme', label: 'Change Theme' },
+      { value: 'change_language', label: 'Change Language' },
+      { value: 'report_error', label: 'Report Error' },
+      { value: 'retry', label: 'Retry' },
+      { value: 'reopen', label: 'Re-open' },
+      { value: 'cancel', label: 'Cancel' },
+    ] },
+    { key: 'buttonSound', label: 'Sound URL', type: 'text', dependsOn: { key: 'function', value: 'play_audio' } },
+    { key: 'apiCall', label: 'API URL Trigger', type: 'text', dependsOn: { key: 'function', value: 'api_call' } },
+    { key: 'command', label: 'Run Command', type: 'text' },
+    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'bgColor', label: 'Background', type: 'color', default: '#4f46e5' },
+    { key: 'borderRadius', label: 'Radius', type: 'number', default: 0 },
+  ],
+  image: [
+    { key: 'imageUrl', label: 'Image URL', type: 'text' },
+  ],
+  audio: [
+    { key: 'audioUrl', label: 'Audio URL', type: 'text' },
+  ],
+  api: [
+    { key: 'apiUrl', label: 'API URL', type: 'text' },
+    { key: 'httpMethod', label: 'HTTP Method', type: 'select', options: [
+      { value: 'GET', label: 'GET' },
+      { value: 'POST', label: 'POST' },
+      { value: 'PUT', label: 'PUT' },
+      { value: 'DELETE', label: 'DELETE' },
+    ] },
+    { key: 'headers', label: 'Headers (JSON)', type: 'textarea' },
+    { key: 'requestBody', label: 'Request Body (JSON)', type: 'textarea' },
+  ],
+  command: [
+    { key: 'command', label: 'Custom Command', type: 'textarea' },
+  ],
+};
 // import { LanguageSection } from './LanguageSection';
+// Helper to get all language keys
+function getAllLangKeys(locales) {
+  const keys = new Set();
+  Object.values(locales).forEach(lang => Object.keys(lang).forEach(k => keys.add(k)));
+  return Array.from(keys);
+}
+// Modal styles for new key popup
+const modalStyles = {
+  overlay: { zIndex: 1000, background: 'rgba(0,0,0,0.2)' },
+  content: { maxWidth: 400, margin: 'auto', borderRadius: 8, padding: 24 }
+};
 import { locales as initialLocales } from '../../locales';
-import type { Locale, Translations } from '../../locales/types';
+import type { Translations } from '../../locales/types';
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
 
@@ -11,8 +88,12 @@ export default function RightSidebar() {
   const [showToast, setShowToast] = useState(false);
 
   // Language management state
-  // const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
-  // const [locale, setLocale] = useState<Locale>('en');
+  const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
+  const [showLangModal, setShowLangModal] = useState(false);
+  const [newLangKey, setNewLangKey] = useState('');
+  const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>({});
+  const [langTargetField, setLangTargetField] = useState<string>('');
+  const allLangKeys = getAllLangKeys(languages);
 
   useEffect(() => {
     setLocalValues(selectedComponent);
@@ -36,8 +117,9 @@ export default function RightSidebar() {
             <section className="property-group sandbox-section">
               <h3 className="group-title">Sandbox Configuration</h3>
               <div className="property-field">
-                <label>Carrier</label>
+                <label htmlFor="carrier-input">Carrier</label>
                 <input
+                  id="carrier-input"
                   type="text"
                   value={state.sandboxConfig.carrier}
                   onChange={(e) => updateSandboxConfig({ carrier: e.target.value })}
@@ -45,8 +127,9 @@ export default function RightSidebar() {
                 />
               </div>
               <div className="property-field">
-                <label>Service Point</label>
+                <label htmlFor="service-point-input">Service Point</label>
                 <input
+                  id="service-point-input"
                   type="text"
                   value={state.sandboxConfig.servicePoint}
                   onChange={(e) => updateSandboxConfig({ servicePoint: e.target.value })}
@@ -56,8 +139,9 @@ export default function RightSidebar() {
 
               <h3 className="group-title" style={{ marginTop: '16px' }}>Create Booking</h3>
               <div className="property-field">
-                <label>Shipment ID</label>
+                <label htmlFor="shipment-id-input">Shipment ID</label>
                 <input
+                  id="shipment-id-input"
                   type="text"
                   value={state.sandboxConfig.shipmentId}
                   onChange={(e) => updateSandboxConfig({ shipmentId: e.target.value })}
@@ -65,8 +149,9 @@ export default function RightSidebar() {
                 />
               </div>
               <div className="property-field">
-                <label>Shipment Type</label>
+                <label htmlFor="shipment-type-input">Shipment Type</label>
                 <select
+                  id="shipment-type-input"
                   value={state.sandboxConfig.shipmentType}
                   onChange={(e) => updateSandboxConfig({ shipmentType: e.target.value })}
                 >
@@ -76,8 +161,9 @@ export default function RightSidebar() {
                 </select>
               </div>
               <div className="property-field">
-                <label>Allocation Type</label>
+                <label htmlFor="allocation-type-input">Allocation Type</label>
                 <select
+                  id="allocation-type-input"
                   value={state.sandboxConfig.allocationType}
                   onChange={(e) => updateSandboxConfig({ allocationType: e.target.value })}
                 >
@@ -87,8 +173,9 @@ export default function RightSidebar() {
                 </select>
               </div>
               <div className="property-field">
-                <label>Expiry</label>
+                <label htmlFor="expiry-input">Expiry</label>
                 <input
+                  id="expiry-input"
                   type="datetime-local"
                   value={state.sandboxConfig.expiry}
                   onChange={(e) => updateSandboxConfig({ expiry: e.target.value })}
@@ -156,6 +243,28 @@ export default function RightSidebar() {
     updateComponent(updated);
   };
 
+  // Open modal to add new language key
+  const openLangModal = (targetField: string) => {
+    setLangTargetField(targetField);
+    setNewLangKey('');
+    setNewLangValues(Object.fromEntries(Object.keys(languages).map(l => [l, ''])));
+    setShowLangModal(true);
+  };
+
+  // Save new language key to all languages
+  const saveLangModal = () => {
+    if (!newLangKey.trim() || allLangKeys.includes(newLangKey)) return;
+    const updatedLangs = { ...languages };
+    Object.keys(updatedLangs).forEach(lang => {
+      updatedLangs[lang][newLangKey] = newLangValues[lang] || '';
+    });
+    setLanguages(updatedLangs);
+    // Update the field to use the new key
+    handleChange(langTargetField, newLangKey);
+    setShowLangModal(false);
+    alert('Language files updated in memory. Please manually update en.json and da.json files to persist changes.');
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -178,240 +287,193 @@ export default function RightSidebar() {
         <section className="property-group">
           <h3 className="group-title">Layout</h3>
           <div className="property-grid">
-            <div className="property-field">
-              <label>X</label>
-              <input
-                type="number"
-                value={localValues.x}
-                onChange={(e) => handleChange('x', parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="property-field">
-              <label>Y</label>
-              <input
-                type="number"
-                value={localValues.y}
-                onChange={(e) => handleChange('y', parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="property-field">
-              <label>Width</label>
-              <input
-                type="number"
-                value={localValues.width}
-                onChange={(e) => handleChange('width', parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="property-field">
-              <label>Height</label>
-              <input
-                type="number"
-                value={localValues.height}
-                onChange={(e) => handleChange('height', parseInt(e.target.value) || 0)}
-              />
-            </div>
+            {['x', 'y', 'width', 'height'].map((key) => (
+              <div className="property-field" key={key}>
+                <label>{key.toUpperCase()}</label>
+                <input
+                  type="number"
+                  value={localValues[key]}
+                  onChange={e => handleChange(key, Number.parseInt(e.target.value) || 0)}
+                />
+              </div>
+            ))}
           </div>
         </section>
 
-        {(selectedComponent.type === 'text' || selectedComponent.type === 'text_input' || selectedComponent.type === 'button') && (
+        {/* Dynamic fields based on type */}
+        {FIELD_CONFIG[selectedComponent.type] && (
           <section className="property-group">
-            <h3 className="group-title">Content & Style</h3>
-            <div className="property-field" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <label style={{ minWidth: 110, marginRight: 8 }}>Label / Input Text</label>
-              <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 8 }}>
-                <input
-                  type="text"
-                  value={localValues.text || ''}
-                  onChange={(e) => handleChange('text', e.target.value)}
-                  style={{ flex: 1 }}
-                  placeholder="Enter label or input text..."
-                />
-              </div>
-            </div>
-            {selectedComponent.type === 'text_input' && (
-              <div className="property-field">
-                <label>Placeholder</label>
-                <input
-                  type="text"
-                  value={localValues.placeholder || ''}
-                  placeholder="Enter placeholder text..."
-                  onChange={(e) => handleChange('placeholder', e.target.value)}
-                />
-              </div>
-            )}
+            <h3 className="group-title">Properties</h3>
             <div className="property-grid">
-              <div className="property-field">
-                <label>Font Size</label>
-                <input
-                  type="number"
-                  value={localValues.fontSize || 14}
-                  onChange={(e) => handleChange('fontSize', parseInt(e.target.value) || 12)}
-                />
-              </div>
-              <div className="property-field">
-                <label>Text Color</label>
-                <div className="color-picker-wrapper">
-                  <input
-                    type="color"
-                    value={localValues.color || '#000000'}
-                    onChange={(e) => handleChange('color', e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-            {selectedComponent.type === 'text_input' && (
-              <div className="property-grid">
-                <div className="property-field">
-                  <label>Background</label>
-                  <div className="color-picker-wrapper">
+              {FIELD_CONFIG[selectedComponent.type].map(field => {
+                // Conditional rendering based on dependencies
+                if (field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
+                if (field.type === 'select') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <select
+                        value={localValues[field.key] || field.options[0].value}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      >
+                        {field.options.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                if (field.type === 'langKey') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label style={{ marginBottom: 2 }}>{field.label}</label>
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' }}>
+                        <select
+                          value={localValues[field.key] || ''}
+                          onChange={e => handleChange(field.key, e.target.value)}
+                          style={{ flex: 1, minWidth: 0 }}
+                        >
+                          <option value="">Select text</option>
+                          {allLangKeys.map(key => (
+                            <option key={key} value={key}>{key} ({languages['en'][key] || ''})</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="btn-add-lang"
+                          style={{ padding: '2px 8px', fontSize: 18, fontWeight: 700, borderRadius: 4, border: '1px solid #e5e7eb', background: '#f3f4f6', cursor: 'pointer' }}
+                          onClick={() => openLangModal(field.key)}
+                          title="Add new language string"
+                        >+
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                        {/* Modal for adding new language key */}
+                        <Modal
+                          isOpen={showLangModal}
+                          onRequestClose={() => setShowLangModal(false)}
+                          style={modalStyles}
+                          contentLabel="Add New Language String"
+                          ariaHideApp={false}
+                        >
+                          <h3 style={{ marginBottom: 16 }}>Add New Language String</h3>
+                          <div className="property-field">
+                            <label htmlFor="new-lang-key-input">Key</label>
+                            <input
+                              id="new-lang-key-input"
+                              type="text"
+                              value={newLangKey}
+                              onChange={e => setNewLangKey(e.target.value)}
+                              placeholder="e.g. new_label_key"
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                          {Object.keys(languages).map(lang => (
+                            <div className="property-field" key={lang}>
+                              <label htmlFor={`new-lang-value-${lang}`}>{lang.toUpperCase()}</label>
+                              <input
+                                id={`new-lang-value-${lang}`}
+                                type="text"
+                                value={newLangValues[lang] || ''}
+                                onChange={e => setNewLangValues(v => ({ ...v, [lang]: e.target.value }))}
+                                placeholder={`Value in ${lang}`}
+                                style={{ width: '100%' }}
+                              />
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                            <button
+                              type="button"
+                              className="btn-save-lang"
+                              style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
+                              onClick={saveLangModal}
+                              disabled={!newLangKey.trim() || allLangKeys.includes(newLangKey)}
+                            >Save</button>
+                            <button
+                              type="button"
+                              className="btn-cancel-lang"
+                              style={{ flex: 1, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
+                              onClick={() => setShowLangModal(false)}
+                            >Cancel</button>
+                          </div>
+                          {allLangKeys.includes(newLangKey) && <div style={{ color: 'red', marginTop: 8 }}>Key already exists.</div>}
+                        </Modal>
+                if (field.type === 'screenSelect') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <select
+                        value={localValues[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      >
+                        <option value="">None</option>
+                        {state.screens.map(s => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                if (field.type === 'color') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <input
+                        type="color"
+                        value={localValues[field.key] || field.default}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      />
+                    </div>
+                  );
+                }
+                if (field.type === 'number') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <input
+                        type="number"
+                        value={localValues[field.key] || field.default || 0}
+                        onChange={e => handleChange(field.key, Number.parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  );
+                }
+                if (field.type === 'textarea') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <textarea
+                        value={localValues[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                        rows={field.rows || 3}
+                      />
+                    </div>
+                  );
+                }
+                // Default: text input
+                return (
+                  <div className="property-field" key={field.key}>
+                    <label>{field.label}</label>
                     <input
-                      type="color"
-                      value={localValues.bgColor || '#ffffff'}
-                      onChange={(e) => handleChange('bgColor', e.target.value)}
+                      type="text"
+                      value={localValues[field.key] || ''}
+                      onChange={e => handleChange(field.key, e.target.value)}
                     />
                   </div>
-                </div>
-                <div className="property-field">
-                  <label>Border Radius</label>
-                  <input
-                    type="number"
-                    value={localValues.borderRadius || 8}
-                    onChange={(e) => handleChange('borderRadius', parseInt(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {selectedComponent.type === 'button' && (
-          <section className="property-group">
-            <h3 className="group-title">Interaction</h3>
-            <div className="property-field">
-              <label>Go to Screen</label>
-              <select
-                value={localValues.goToScreen || ''}
-                onChange={(e) => handleChange('goToScreen', e.target.value)}
-              >
-                <option value="">None</option>
-                {state.screens.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="property-field">
-              <label>Function</label>
-              <select
-                value={localValues.function || 'none'}
-                onChange={(e) => handleChange('function', e.target.value)}
-              >
-                <option value="none">None</option>
-                <option value="connect">Connect</option>
-                <option value="open_door">Open Door</option>
-                <option value="initiate_multi_connect">Initiate Multi-Connect</option>
-                <option value="turn_on_modem">Turn-on Modem</option>
-                <option value="dial_up_modem">Dial-up Modem</option>
-                <option value="goto_screen">Goto Screen</option>
-                <option value="play_audio">Play Audio</option>
-                <option value="api_call">API Call</option>
-                <option value="change_theme">Change Theme</option>
-                <option value="change_language">Change Language</option>
-                <option value="report_error">Report Error</option>
-                <option value="retry">Retry</option>
-                <option value="reopen">Re-open</option>
-                <option value="cancel">Cancel</option>
-              </select>
-            </div>
-
-            {localValues.function === 'play_audio' && (
-              <div className="property-field">
-                <label>Sound URL</label>
-                <input
-                  type="text"
-                  value={localValues.buttonSound || ''}
-                  placeholder="https://... or select file"
-                  onChange={(e) => handleChange('buttonSound', e.target.value)}
-                />
-                <label className="file-upload-btn" style={{ marginTop: '8px' }}>
-                  <span>Upload Sound</span>
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          handleChange('buttonSound', event.target?.result as string);
-                        };
-                        reader.readAsDataURL(file);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            )}
-
-            {localValues.function === 'api_call' && (
-              <div className="property-field">
-                <label>API URL Trigger</label>
-                <input
-                  type="text"
-                  value={localValues.apiCall || ''}
-                  placeholder="https://..."
-                  onChange={(e) => handleChange('apiCall', e.target.value)}
-                />
-              </div>
-            )}
-
-            <div className="property-field">
-              <label>Run Command</label>
-              <input
-                type="text"
-                value={localValues.command || ''}
-                placeholder="e.g. reboot"
-                onChange={(e) => handleChange('command', e.target.value)}
-              />
-            </div>
-
-            <h3 className="group-title" style={{ marginTop: '16px' }}>Appearance</h3>
-            <div className="property-grid">
-              <div className="property-field">
-                <label>Background</label>
-                <div className="color-picker-wrapper">
-                  <input
-                    type="color"
-                    value={localValues.bgColor || '#4f46e5'}
-                    onChange={(e) => handleChange('bgColor', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="property-field">
-                <label>Radius</label>
-                <input
-                  type="number"
-                  value={localValues.borderRadius || 0}
-                  onChange={(e) => handleChange('borderRadius', parseInt(e.target.value) || 0)}
-                />
-              </div>
+                );
+              })}
             </div>
           </section>
         )}
 
+        {/* File upload for image/audio */}
         {selectedComponent.type === 'image' && (
           <section className="property-group">
-            <h3 className="group-title">Image</h3>
+            <h3 className="group-title">Image Upload</h3>
             <div className="property-field">
-              <label>Image URL</label>
-              <input
-                type="text"
-                value={localValues.imageUrl || ''}
-                placeholder="https://..."
-                onChange={(e) => handleChange('imageUrl', e.target.value)}
-              />
-            </div>
-            <div className="property-field">
-              <label>Or Upload</label>
+              <label htmlFor="or-upload-input">Or Upload</label>
               <label className="file-upload-btn">
                 <span>Upload Image</span>
                 <input type="file" accept="image/*" onChange={handleFileUpload} />
@@ -419,21 +481,11 @@ export default function RightSidebar() {
             </div>
           </section>
         )}
-
         {selectedComponent.type === 'audio' && (
           <section className="property-group">
-            <h3 className="group-title">Audio</h3>
+            <h3 className="group-title">Audio Upload</h3>
             <div className="property-field">
-              <label>Audio URL</label>
-              <input
-                type="text"
-                value={localValues.audioUrl || ''}
-                placeholder="https://... or select file"
-                onChange={(e) => handleChange('audioUrl', e.target.value)}
-              />
-            </div>
-            <div className="property-field">
-              <label>Or Upload</label>
+              <label htmlFor="or-upload-input-2">Or Upload</label>
               <label className="file-upload-btn">
                 <span>Upload Audio</span>
                 <input
@@ -468,66 +520,6 @@ export default function RightSidebar() {
                 </button>
               </div>
             )}
-          </section>
-        )}
-
-        {selectedComponent.type === 'api' && (
-          <section className="property-group">
-            <h3 className="group-title">API Configuration</h3>
-            <div className="property-field">
-              <label>API URL</label>
-              <input
-                type="text"
-                value={localValues.apiUrl || ''}
-                placeholder="https://..."
-                onChange={(e) => handleChange('apiUrl', e.target.value)}
-              />
-            </div>
-            <div className="property-field">
-              <label>HTTP Method</label>
-              <select
-                value={localValues.httpMethod || 'GET'}
-                onChange={(e) => handleChange('httpMethod', e.target.value)}
-              >
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
-              </select>
-            </div>
-            <div className="property-field">
-              <label>Headers (JSON)</label>
-              <textarea
-                placeholder='{"Authorization": "Bearer ..."}'
-                value={localValues.headers || ''}
-                onChange={(e) => handleChange('headers', e.target.value)}
-                rows={3}
-              />
-            </div>
-            <div className="property-field">
-              <label>Request Body (JSON)</label>
-              <textarea
-                placeholder='{"key": "value"}'
-                value={localValues.requestBody || ''}
-                onChange={(e) => handleChange('requestBody', e.target.value)}
-                rows={4}
-              />
-            </div>
-          </section>
-        )}
-
-        {selectedComponent.type === 'command' && (
-          <section className="property-group">
-            <h3 className="group-title">Command Configuration</h3>
-            <div className="property-field">
-              <label>Custom Command</label>
-              <textarea
-                placeholder="Enter command here..."
-                value={localValues.command || ''}
-                onChange={(e) => handleChange('command', e.target.value)}
-                rows={4}
-              />
-            </div>
           </section>
         )}
 

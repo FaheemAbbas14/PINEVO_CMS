@@ -44,7 +44,22 @@ function getDefaultState(): CMSState {
   const initialScreen: Screen = {
     id: uuidv4(),
     name: 'Screen 1',
-    components: [],
+    components: [
+      {
+        id: uuidv4(),
+        type: 'text_input',
+        x: 100,
+        y: 100,
+        width: 260,
+        height: 60,
+        labelKey: 'pickup',
+        placeholderKey: 'pickup',
+        fontSize: 18,
+        color: '#222',
+        bgColor: '#fff',
+        borderRadius: 8
+      }
+    ],
   };
 
   return {

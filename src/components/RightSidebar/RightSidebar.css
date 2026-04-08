@@ -69,9 +69,10 @@
 }
 
 .property-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  align-items: flex-start;
 }
 
 .property-field {
@@ -79,6 +80,21 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+  align-items: flex-start;
+}
+
+.property-field input[type="text"],
+.property-field select,
+.property-field input[type="number"] {
+  max-width: 160px;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.property-field label {
+  text-align: left;
+  width: 100%;
 }
 
 .property-field label {

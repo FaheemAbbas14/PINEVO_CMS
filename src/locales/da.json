@@ -4,5 +4,7 @@
   "dropoff": "Tryk 2: for at aflevere",
   "courier_login": "Tryk 3: for at logge ind som kurér",
   "change_theme": "Tryk 4: for at skifte tema",
-  "change_language": "Tryk 5: for at skifte sprog"
+  "change_language": "Tryk 5: for at skifte sprog",
+  "home_input_label": "Din besked",
+  "home_input_value": "Velkommen til PINEVO CMS!"
 }

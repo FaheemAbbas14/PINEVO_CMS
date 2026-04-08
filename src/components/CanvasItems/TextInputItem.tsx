@@ -3,6 +3,7 @@ import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
+import { useLanguage } from '../../App';
 import './CanvasItem.css';
 
 interface Props {
@@ -14,6 +15,7 @@ export default function TextInputItem({ component }: Props) {
     const isSelected = state.selectedComponentId === component.id;
     const itemRef = useRef<HTMLDivElement>(null);
     const [displayText, setDisplayText] = useState(component.text || 'Input');
+    const { t } = useLanguage();
 
     const isPreviewMode = state.previewMode;
 
@@ -100,6 +102,14 @@ export default function TextInputItem({ component }: Props) {
     // In preview mode, show input field style
     const isEditable = !isPreviewMode;
 
+    // Determine label and placeholder based on mode
+    const label = component.labelMode === 'lang'
+        ? (component.labelKey ? t(component.labelKey) : '')
+        : (component.text || 'Input');
+    const placeholder = component.placeholderMode === 'lang'
+        ? (component.placeholderKey ? t(component.placeholderKey) : '')
+        : (component.placeholder || 'Enter text...');
+
     return (
         <div
             ref={setRefs}
@@ -129,8 +139,8 @@ export default function TextInputItem({ component }: Props) {
                     borderRadius: `${component.borderRadius || 8}px`,
                     color: component.color || '#1a1a2e',
                 }}>
-                    <span className="text-input-label">{component.text || 'Input'}</span>
-                    <span className="text-input-placeholder">{component.placeholder || 'Enter text...'}</span>
+                    <span className="text-input-label">{label}</span>
+                    <span className="text-input-placeholder">{placeholder}</span>
                 </div>
             ) : (
                 <div className="text-input-content text-input-preview" style={{
@@ -138,7 +148,7 @@ export default function TextInputItem({ component }: Props) {
                     borderRadius: `${component.borderRadius || 8}px`,
                     color: component.color || '#1a1a2e',
                 }}>
-                    {displayText || component.placeholder || 'Input'}
+                    {displayText || placeholder}
                 </div>
             )}
         </div>

@@ -3,6 +3,7 @@ import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
+import { useLanguage } from '../../App';
 import './CanvasItem.css';
 
 interface Props {
@@ -41,6 +42,11 @@ export default function TextItem({ component }: Props) {
     drag(node);
   };
 
+  const { t } = useLanguage();
+  const label = component.labelMode === 'lang'
+    ? (component.labelKey ? t(component.labelKey) : '')
+    : (component.text || 'Text');
+
   return (
     <div
       ref={setRefs}
@@ -59,7 +65,7 @@ export default function TextItem({ component }: Props) {
         selectComponent(component.id);
       }}
     >
-      {component.text || ''}
+      {label}
     </div>
   );
 }

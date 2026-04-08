@@ -3,6 +3,7 @@ import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
+import { useLanguage } from '../../App';
 import './CanvasItem.css';
 
 interface Props {
@@ -78,6 +79,11 @@ export default function ButtonItem({ component }: Props) {
     selectComponent(component.id);
   };
 
+  const { t } = useLanguage();
+  const label = component.labelMode === 'lang'
+    ? (component.labelKey ? t(component.labelKey) : '')
+    : (component.text || 'Button');
+
   return (
     <div
       ref={setRefs}
@@ -102,7 +108,7 @@ export default function ButtonItem({ component }: Props) {
           cursor: 'pointer',
         }}
       >
-        {component.text}
+        {label}
       </button>
     </div>
   );
