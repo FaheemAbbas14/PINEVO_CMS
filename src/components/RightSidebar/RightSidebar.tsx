@@ -318,9 +318,12 @@ export default function RightSidebar() {
   // Save new language key to all languages and persist to language files
   const saveLangModal = async (): Promise<void> => {
     if (!newLangKey.trim() || allLangKeys.includes(newLangKey)) return;
+    // Require all language values to be filled
+    const allFilled = Object.keys(languages).every(lang => (newLangValues[lang] || '').trim() !== '');
+    if (!allFilled) return;
     const updatedLangs = { ...languages };
     Object.keys(updatedLangs).forEach(lang => {
-      updatedLangs[lang][newLangKey] = newLangValues[lang] || '';
+      updatedLangs[lang][newLangKey] = newLangValues[lang];
       saveLanguageToProject(lang, updatedLangs[lang]); // Persist each language
     });
     setLanguages(updatedLangs);
@@ -483,7 +486,11 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                                 className="btn-save-lang"
                                 style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
                                 onClick={saveLangModal}
-                                disabled={!newLangKey.trim() || allLangKeys.includes(newLangKey)}
+                                disabled={
+                                  !newLangKey.trim() ||
+                                  allLangKeys.includes(newLangKey) ||
+                                  Object.keys(languages).some(lang => (newLangValues[lang] || '').trim() === '')
+                                }
                               >Save</button>
                               <button
                                 type="button"

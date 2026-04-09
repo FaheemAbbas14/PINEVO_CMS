@@ -11,9 +11,13 @@ interface LanguageManagerProps {
 }
 
 export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale, languages, setLanguages }) => {
-      // State for adding new key/value
+      // State for adding new key/values for all languages
       const [newKey, setNewKey] = useState('');
-      const [newValue, setNewValue] = useState('');
+      const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>(() => {
+        const obj: { [lang: string]: string } = {};
+        Object.keys(languages).forEach(lang => { obj[lang] = ''; });
+        return obj;
+      });
       const [addError, setAddError] = useState('');
     // Edit translation key
     const handleEditTranslation = (key: string) => {
@@ -93,47 +97,68 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
         </select>
       </div>
 
-      {/* Add new key/value form */}
+      {/* Add new key/values for all languages */}
       <form
         onSubmit={e => {
           e.preventDefault();
-          if (!newKey.trim() || !newValue.trim()) {
-            setAddError('Key and value are required.');
+          if (!newKey.trim()) {
+            setAddError('Key is required.');
             return;
           }
           if (translationKeys.includes(newKey)) {
             setAddError('Key already added');
             return;
           }
-          const updated: Translations = { ...translationValues, [newKey]: newValue };
-          setLanguages({ ...languages, [selectedLang]: updated });
-          saveLanguageToProject(selectedLang, updated);
-          if (selectedLang === 'en') {
-            Object.assign(en, updated);
-          } else if (selectedLang === 'da') {
-            Object.assign(da, updated);
+          const allFilled = Object.keys(languages).every(lang => (newLangValues[lang] || '').trim() !== '');
+          if (!allFilled) {
+            setAddError('Value required for all languages.');
+            return;
           }
+          // Save to all languages
+          const updatedLangs = { ...languages };
+          Object.keys(updatedLangs).forEach(lang => {
+            updatedLangs[lang] = { ...updatedLangs[lang], [newKey]: newLangValues[lang] };
+            saveLanguageToProject(lang, updatedLangs[lang]);
+            if (lang === 'en') Object.assign(en, updatedLangs[lang]);
+            if (lang === 'da') Object.assign(da, updatedLangs[lang]);
+          });
+          setLanguages(updatedLangs);
           setNewKey('');
-          setNewValue('');
+          setNewLangValues(Object.fromEntries(Object.keys(languages).map(l => [l, ''])));
           setAddError('');
         }}
-        style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}
+        style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start', marginBottom: 16 }}
       >
-        <input
-          type="text"
-          placeholder="Key"
-          value={newKey}
-          onChange={e => setNewKey(e.target.value)}
-          style={{ flex: 1, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
-        />
-        <input
-          type="text"
-          placeholder="Value"
-          value={newValue}
-          onChange={e => setNewValue(e.target.value)}
-          style={{ flex: 2, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
-        />
-        <button type="submit" style={{ padding: '6px 14px', borderRadius: 4, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 500, cursor: 'pointer' }}>Add</button>
+        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+          <input
+            type="text"
+            placeholder="Key"
+            value={newKey}
+            onChange={e => setNewKey(e.target.value)}
+            style={{ flex: 1, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
+          />
+          <button
+            type="submit"
+            style={{ padding: '6px 14px', borderRadius: 4, border: 'none', background: '#6366f1', color: '#fff', fontWeight: 500, cursor: 'pointer' }}
+            disabled={
+              !newKey.trim() ||
+              translationKeys.includes(newKey) ||
+              Object.keys(languages).some(lang => (newLangValues[lang] || '').trim() === '')
+            }
+          >Add</button>
+        </div>
+        {Object.keys(languages).map(lang => (
+          <div key={lang} style={{ width: '100%', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={{ minWidth: 40 }}>{lang.toUpperCase()}:</label>
+            <input
+              type="text"
+              placeholder={`Value in ${lang}`}
+              value={newLangValues[lang] || ''}
+              onChange={e => setNewLangValues(v => ({ ...v, [lang]: e.target.value }))}
+              style={{ flex: 2, padding: 4, border: '1px solid #e5e7eb', borderRadius: 4 }}
+            />
+          </div>
+        ))}
         {addError && <span style={{ color: 'red', fontSize: 12 }}>{addError}</span>}
       </form>
 

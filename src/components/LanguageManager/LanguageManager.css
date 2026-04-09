@@ -3,7 +3,12 @@
   background: #f9fafb;
   border-radius: 8px;
   margin-bottom: 16px;
+  max-height: 70vh;
+  overflow-y: auto;
+  position: relative;
+  box-sizing: border-box;
 }
+
 .language-manager ul {
   list-style: none;
   padding: 0;
