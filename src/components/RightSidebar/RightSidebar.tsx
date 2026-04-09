@@ -94,10 +94,19 @@ const modalStyles = {
   },
 };
 import { locales as initialLocales } from '../../locales';
+
+// Add type-safe accessor for initialLocales
+const getLocaleByKey = (lang: string): Translations => {
+  if (lang in initialLocales) {
+    // @ts-expect-error: Indexing by string is safe for known keys
+    return initialLocales[lang];
+  }
+  return {};
+};
 // Do not re-import Translations type, already defined above
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
-import { saveLanguageToProject } from '../../locales/persistLanguage';
+import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
 
 export default function RightSidebar() {
   const { locale } = useLanguage();
@@ -108,20 +117,34 @@ export default function RightSidebar() {
   const [showToast, setShowToast] = useState(false);
 
   // Language management state
-  const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
+
+  // Load languages from localStorage if available, else fallback to initialLocales
+  const getPersistedLocales = () => {
+    const langs: { [key: string]: Translations } = {};
+    for (const lang of Object.keys(initialLocales)) {
+      const persisted = loadLanguageFromProject(lang);
+      langs[lang] = Object.keys(persisted).length > 0 ? persisted : getLocaleByKey(lang);
+    }
+    return langs;
+  };
+
+  const [languages, setLanguages] = useState<{ [key: string]: Translations }>(getPersistedLocales());
   const [showLangModal, setShowLangModal] = useState(false);
   const [newLangKey, setNewLangKey] = useState('');
   const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>({});
   const [langTargetField, setLangTargetField] = useState<string>('');
-  const [allLangKeys, setAllLangKeys] = useState<string[]>(getAllLangKeys(languages));
+  const [allLangKeys, setAllLangKeys] = useState<string[]>(getAllLangKeys(getPersistedLocales()));
 
   useEffect(() => {
     if (selectedComponent) setLocalValues(selectedComponent);
   }, [selectedComponent]);
 
-  // Update allLangKeys when languages change
+
+  // Update allLangKeys from persisted storage when languages change
   useEffect(() => {
-    setAllLangKeys(getAllLangKeys(languages));
+    // Always reload from persisted storage to ensure dropdown is up to date
+    const persistedLocales = getPersistedLocales();
+    setAllLangKeys(getAllLangKeys(persistedLocales));
   }, [languages]);
 
   // When language changes, update localValues to force re-render of language key dropdowns and preview text
@@ -393,7 +416,12 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%' }}>
                         <select
                           value={localValues[field.key] || ''}
-                          onChange={e => handleChange(field.key, e.target.value)}
+                          onChange={e => {
+                            // On dropdown open/change, reload keys from persisted storage
+                            const persistedLocales = getPersistedLocales();
+                            setAllLangKeys(getAllLangKeys(persistedLocales));
+                            handleChange(field.key, e.target.value);
+                          }}
                           style={{ flex: 1, minWidth: 0 }}
                         >
                           <option value="">Select text</option>

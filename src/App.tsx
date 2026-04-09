@@ -1,6 +1,7 @@
 import React, { useState, createContext, useContext, useMemo } from 'react';
 import { DndProvider } from 'react-dnd';
 import { locales } from './locales';
+import { loadLanguageFromProject } from './locales/persistLanguage';
 import type { Locale } from './locales/types';
 // --- Language Context and Provider ---
 type LanguageContextType = {
@@ -20,8 +21,15 @@ function useLanguage() {
 
 function LanguageProvider({ children }: { readonly children: React.ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en');
-  // Add index signature to locales for dynamic key access
-  const t = (key: string) => (locales as Record<string, Record<string, string>>)[locale][key] || key;
+
+  // Always use persisted translations if available, fallback to static locales
+  const t = (key: string) => {
+    const persisted = loadLanguageFromProject(locale);
+    if (persisted && typeof persisted[key] === 'string') return persisted[key];
+    const fallback = (locales as Record<string, Record<string, string>>)[locale][key];
+    return typeof fallback === 'string' ? fallback : '';
+  };
+
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale]);
   return (
     <LanguageContext.Provider value={value}>

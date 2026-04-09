@@ -1,6 +1,11 @@
 import JSZip from 'jszip';
 import enLocale from '../locales/en.json';
 import daLocale from '../locales/da.json';
+import { loadLanguageFromProject } from '../locales/persistLanguage';
+
+// Load persisted language JSON once for all export functions
+const persistedEn = loadLanguageFromProject('en');
+const persistedDa = loadLanguageFromProject('da');
 import type { CMSState, CanvasComponent, HardwareButtonConfig, ProjectType, Screen } from '../types';
 import { BLE_CONFIG, FEATURE_FLAGS, EXPORT_CONFIG } from '../config/project';
 import {
@@ -1043,9 +1048,11 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
     throw new Error('Failed to create json export folder.');
   }
 
-  // Add language files
-  jsonFolder.file('languages/en.json', JSON.stringify(enLocale, null, 2));
-  jsonFolder.file('languages/da.json', JSON.stringify(daLocale, null, 2));
+  // Add language files from persisted storage if available, else fallback to static
+  const persistedEn = loadLanguageFromProject('en');
+  const persistedDa = loadLanguageFromProject('da');
+  jsonFolder.file('languages/en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
+  jsonFolder.file('languages/da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
 
   // Add config with supported languages
   const config = {
@@ -1086,13 +1093,13 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
     throw new Error('Failed to create ui export folder.');
   }
 
-  // Add language files
+  // Add language files from persisted storage if available, else fallback to static
   const langFolder = uiFolder.folder('lang');
   if (!langFolder) {
     throw new Error('Failed to create lang export folder.');
   }
-  langFolder.file('en.json', JSON.stringify(enLocale, null, 2));
-  langFolder.file('da.json', JSON.stringify(daLocale, null, 2));
+  langFolder.file('en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
+  langFolder.file('da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
 
   // Add config with supported languages
   const config = {
@@ -1163,11 +1170,11 @@ export async function generateBLEDeploymentBundle(
   if (!selectedFolder || !configFolder) {
     throw new Error('Failed to create deployment zip folders.');
   }
-  // Add language files to ui/lang/
-  const langFolder = zip.folder('ui/lang');
-  if (langFolder) {
-    langFolder.file('en.json', JSON.stringify(enLocale, null, 2));
-    langFolder.file('da.json', JSON.stringify(daLocale, null, 2));
+  // Add language files to ui/lang/ from persisted storage if available
+  const langFolder2 = zip.folder('ui/lang');
+  if (langFolder2) {
+    langFolder2.file('en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
+    langFolder2.file('da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
   }
 
   const addTextFile = (path: string, content: string) => {
