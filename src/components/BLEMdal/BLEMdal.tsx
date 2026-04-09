@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Modal from 'react-modal';
+import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
+import { locales as initialLocales } from '../../locales';
 import './BLEMdal.css';
 import { useCMS } from '../../context/AppContext';
 import { BLE_CONFIG, FEATURE_FLAGS } from '../../config/project';
@@ -229,6 +232,12 @@ export default function BLEMdal({
     const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'flashing' | 'complete'>('idle');
     const [deployCurrentChunk, setDeployCurrentChunk] = useState(0);
     const [deployTotalChunks, setDeployTotalChunks] = useState(0);
+    // Language modal state
+    const [showLangModal, setShowLangModal] = useState(false);
+    const [newLangKey, setNewLangKey] = useState('');
+    const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>({ en: '', da: '' });
+    const [langError, setLangError] = useState('');
+    const [langSuccess, setLangSuccess] = useState('');
     // Holds the AbortController for the in-flight deployment so the cross button can cancel it.
     const deployAbortRef = useRef<AbortController | null>(null);
 
@@ -708,6 +717,20 @@ export default function BLEMdal({
                         BLE Device Connection
                     </h2>
                     <button
+                        type="button"
+                        className="btn-add-lang"
+                        style={{ padding: '2px 8px', fontSize: 18, fontWeight: 700, borderRadius: 4, border: '1px solid #e5e7eb', background: '#f3f4f6', cursor: 'pointer', marginLeft: 12 }}
+                        title="Add new language string"
+                        onClick={() => {
+                            setNewLangKey('');
+                            setNewLangValues({ en: '', da: '' });
+                            setLangError('');
+                            setLangSuccess('');
+                            setShowLangModal(true);
+                        }}
+                    >+
+                    </button>
+                    <button
                         className="ble-modal-close"
                         onClick={isDeploying ? handleCancelDeployAndClose : onClose}
                         aria-label={isDeploying ? 'Cancel deployment and close' : 'Close BLE modal'}
@@ -717,6 +740,83 @@ export default function BLEMdal({
                             <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                     </button>
+                    {/* Modal for adding new language key */}
+                    <Modal
+                        isOpen={showLangModal}
+                        onRequestClose={() => setShowLangModal(false)}
+                        style={{ overlay: { zIndex: 1000, background: 'rgba(0,0,0,0.2)' }, content: { maxWidth: 400, margin: 'auto', borderRadius: 8, padding: 24, maxHeight: '90vh', overflowY: 'auto' } }}
+                        contentLabel="Add New Language String"
+                        ariaHideApp={false}
+                    >
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <h3 style={{ marginBottom: 16 }}>Add New Language String</h3>
+                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                                <div className="property-field">
+                                    <label htmlFor="new-lang-key-input">Key</label>
+                                    <input
+                                        id="new-lang-key-input"
+                                        type="text"
+                                        value={newLangKey}
+                                        onChange={e => setNewLangKey(e.target.value.replace(/\s/g, '_'))}
+                                        placeholder="Enter key (e.g. welcome)"
+                                        style={{ width: '100%', marginBottom: 12 }}
+                                    />
+                                </div>
+                                {['en', 'da'].map(lang => (
+                                    <div className="property-field" key={lang} style={{ marginBottom: 8 }}>
+                                        <label htmlFor={`new-lang-value-${lang}`}>{lang.toUpperCase()} Value</label>
+                                        <input
+                                            id={`new-lang-value-${lang}`}
+                                            type="text"
+                                            value={newLangValues[lang]}
+                                            onChange={e => setNewLangValues(v => ({ ...v, [lang]: e.target.value }))}
+                                            placeholder={`Enter value for ${lang}`}
+                                            style={{ width: '100%' }}
+                                        />
+                                    </div>
+                                ))}
+                                {langError && <div style={{ color: 'red', marginTop: 8 }}>{langError}</div>}
+                                {langSuccess && <div style={{ color: 'green', marginTop: 8 }}>{langSuccess}</div>}
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                                <button
+                                    type="button"
+                                    style={{ marginRight: 8, padding: '6px 16px', borderRadius: 4, border: '1px solid #e5e7eb', background: '#f3f4f6', cursor: 'pointer' }}
+                                    onClick={() => setShowLangModal(false)}
+                                >Cancel</button>
+                                <button
+                                    type="button"
+                                    style={{ padding: '6px 16px', borderRadius: 4, border: '1px solid #4f46e5', background: '#4f46e5', color: '#fff', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        setLangError('');
+                                        setLangSuccess('');
+                                        if (!newLangKey.trim()) {
+                                            setLangError('Key is required.');
+                                            return;
+                                        }
+                                        if (!newLangValues.en.trim() || !newLangValues.da.trim()) {
+                                            setLangError('All language values are required.');
+                                            return;
+                                        }
+                                        // Check for duplicate key
+                                        const existingEn = loadLanguageFromProject('en');
+                                        const existingDa = loadLanguageFromProject('da');
+                                        if (existingEn[newLangKey] || existingDa[newLangKey]) {
+                                            setLangError('Key already exists.');
+                                            return;
+                                        }
+                                        // Save to localStorage
+                                        saveLanguageToProject('en', { ...existingEn, [newLangKey]: newLangValues.en });
+                                        saveLanguageToProject('da', { ...existingDa, [newLangKey]: newLangValues.da });
+                                        setLangSuccess('Language key added!');
+                                        setTimeout(() => {
+                                            setShowLangModal(false);
+                                        }, 800);
+                                    }}
+                                >Save</button>
+                            </div>
+                        </div>
+                    </Modal>
                 </div>
 
                 <div className="ble-modal-body">

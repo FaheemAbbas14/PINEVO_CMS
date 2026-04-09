@@ -4,12 +4,33 @@ import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareBut
 import type { DeployUIType } from '../services/exportService';
 import { FEATURE_FLAGS } from '../config/project';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
+import { loadLanguageFromProject, saveLanguageToProject } from '../locales/persistLanguage';
 
 // Local storage keys
 const STORAGE_KEY = 'pinevo_cms_state';
 
 // Load initial state from localStorage
 function loadInitialState(): CMSState {
+
+  // --- Language persistence sync: ensure da has all en keys ---
+  try {
+    // Sync missing keys from en to da in persistent storage
+    const en = loadLanguageFromProject('en');
+    const da = loadLanguageFromProject('da');
+    let updated = false;
+    Object.keys(en).forEach(key => {
+      if (!(key in da)) {
+        da[key] = '';
+        updated = true;
+      }
+    });
+    if (updated) {
+      saveLanguageToProject('da', da);
+    }
+  } catch (e) {
+    console.warn('Failed to sync language keys in persistent storage:', e);
+  }
+
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
