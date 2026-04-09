@@ -729,15 +729,16 @@ function renderFirmwareComponent(
   embeddedAssetRefs: Map<string, string>
 ) {
   if (component.type === 'text') {
+    const hasLabelKey = !!component.labelKey;
     return buildTag('label', [
       ['x', component.x],
       ['y', component.y],
       ['font', component.fontSize || 14],
       ['color', component.color || '#1a1a2e'],
       ['font_src', ''],
-      ['text', component.text || ''],
+      ['text', hasLabelKey ? '' : (component.text || '')],
       ['data-label-key', component.labelKey],
-      ['data-label-mode', component.labelMode],
+      // 'data-label-mode' removed
     ]);
   }
 
@@ -778,6 +779,7 @@ function renderFirmwareComponent(
   }
 
   if (component.type === 'text_input') {
+    const hasLabelKey = !!component.labelKey;
     return buildTag('input', [
       ['x', component.x],
       ['y', component.y],
@@ -787,11 +789,11 @@ function renderFirmwareComponent(
       ['text_color', component.color || '#1a1a2e'],
       ['font', component.fontSize || 14],
       ['font_src', ''],
-      ['text', component.text || ''],
+      ['text', hasLabelKey ? '' : (component.text || '')],
       ['placeholder', component.placeholder || ''],
       ['border_radius', component.borderRadius || 8],
       ['data-label-key', component.labelKey],
-      ['data-label-mode', component.labelMode],
+      // 'data-label-mode' removed
       ['data-placeholder-key', component.placeholderKey],
       ['data-placeholder-mode', component.placeholderMode],
     ]);

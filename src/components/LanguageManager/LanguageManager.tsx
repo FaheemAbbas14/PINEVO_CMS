@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import en from '../../locales/en.json';
 import da from '../../locales/da.json';
+import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
 import type { Locale, Translations } from '../../locales/types';
 
 interface LanguageManagerProps {
@@ -27,7 +28,7 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
       const updated: Translations = { ...translationValues };
       delete updated[key];
       setLanguages({ ...languages, [selectedLang]: updated });
-      // Simulate file update (in-memory only)
+      saveLanguageToProject(selectedLang, updated);
       if (selectedLang === 'en') {
         Object.assign(en, updated);
       } else if (selectedLang === 'da') {
@@ -45,7 +46,7 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
       }
       updated[editKeyValue] = editValueValue;
       setLanguages({ ...languages, [selectedLang]: updated });
-      // Simulate file update (in-memory only)
+      saveLanguageToProject(selectedLang, updated);
       if (selectedLang === 'en') {
         Object.assign(en, updated);
       } else if (selectedLang === 'da') {
@@ -56,6 +57,15 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
       setEditValueValue('');
     };
   const [selectedLang, setSelectedLang] = useState<string>(currentLocale);
+
+  // Load persisted language keys on mount or language change
+  React.useEffect(() => {
+    const loaded: { [key: string]: Translations } = {};
+    Object.keys(languages).forEach(lang => {
+      loaded[lang] = { ...languages[lang], ...loadLanguageFromProject(lang) };
+    });
+    setLanguages(loaded);
+  }, []);
 
   // Get keys for selected language
   const translationKeys = Object.keys(languages[selectedLang] || {});
@@ -97,6 +107,7 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale,
           }
           const updated: Translations = { ...translationValues, [newKey]: newValue };
           setLanguages({ ...languages, [selectedLang]: updated });
+          saveLanguageToProject(selectedLang, updated);
           if (selectedLang === 'en') {
             Object.assign(en, updated);
           } else if (selectedLang === 'da') {

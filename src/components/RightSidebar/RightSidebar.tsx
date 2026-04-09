@@ -84,12 +84,20 @@ function getAllLangKeys(locales: { [key: string]: Translations }): string[] {
 // Modal styles for new key popup
 const modalStyles = {
   overlay: { zIndex: 1000, background: 'rgba(0,0,0,0.2)' },
-  content: { maxWidth: 400, margin: 'auto', borderRadius: 8, padding: 24 }
+  content: {
+    maxWidth: 400,
+    margin: 'auto',
+    borderRadius: 8,
+    padding: 24,
+    maxHeight: '90vh',
+    overflowY: 'auto' as React.CSSProperties['overflowY'],
+  },
 };
 import { locales as initialLocales } from '../../locales';
 // Do not re-import Translations type, already defined above
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
+import { saveLanguageToProject } from '../../locales/persistLanguage';
 
 export default function RightSidebar() {
   const { locale } = useLanguage();
@@ -290,6 +298,7 @@ export default function RightSidebar() {
     const updatedLangs = { ...languages };
     Object.keys(updatedLangs).forEach(lang => {
       updatedLangs[lang][newLangKey] = newLangValues[lang] || '';
+      saveLanguageToProject(lang, updatedLangs[lang]); // Persist each language
     });
     setLanguages(updatedLangs);
     setAllLangKeys(getAllLangKeys(updatedLangs));
@@ -412,47 +421,51 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                           contentLabel="Add New Language String"
                           ariaHideApp={false}
                         >
-                          <h3 style={{ marginBottom: 16 }}>Add New Language String</h3>
-                          <div className="property-field">
-                            <label htmlFor="new-lang-key-input">Key</label>
-                            <input
-                              id="new-lang-key-input"
-                              type="text"
-                              value={newLangKey}
-                              onChange={e => setNewLangKey(e.target.value)}
-                              placeholder="e.g. new_label_key"
-                              style={{ width: '100%' }}
-                            />
-                          </div>
-                          {Object.keys(languages).map(lang => (
-                            <div className="property-field" key={lang}>
-                              <label htmlFor={`new-lang-value-${lang}`}>{lang.toUpperCase()}</label>
-                              <input
-                                id={`new-lang-value-${lang}`}
-                                type="text"
-                                value={newLangValues[lang] || ''}
-                                onChange={e => setNewLangValues(v => ({ ...v, [lang]: e.target.value }))}
-                                placeholder={`Value in ${lang}`}
-                                style={{ width: '100%' }}
-                              />
+                          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <h3 style={{ marginBottom: 16 }}>Add New Language String</h3>
+                            <div style={{ flex: 1, overflowY: 'auto' }}>
+                              <div className="property-field">
+                                <label htmlFor="new-lang-key-input">Key</label>
+                                <input
+                                  id="new-lang-key-input"
+                                  type="text"
+                                  value={newLangKey}
+                                  onChange={e => setNewLangKey(e.target.value)}
+                                  placeholder="e.g. new_label_key"
+                                  style={{ width: '100%' }}
+                                />
+                              </div>
+                              {Object.keys(languages).map(lang => (
+                                <div className="property-field" key={lang}>
+                                  <label htmlFor={`new-lang-value-${lang}`}>{lang.toUpperCase()}</label>
+                                  <input
+                                    id={`new-lang-value-${lang}`}
+                                    type="text"
+                                    value={newLangValues[lang] || ''}
+                                    onChange={e => setNewLangValues(v => ({ ...v, [lang]: e.target.value }))}
+                                    placeholder={`Value in ${lang}`}
+                                    style={{ width: '100%' }}
+                                  />
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                            <button
-                              type="button"
-                              className="btn-save-lang"
-                              style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
-                              onClick={saveLangModal}
-                              disabled={!newLangKey.trim() || allLangKeys.includes(newLangKey)}
-                            >Save</button>
-                            <button
-                              type="button"
-                              className="btn-cancel-lang"
-                              style={{ flex: 1, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
-                              onClick={() => setShowLangModal(false)}
-                            >Cancel</button>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                              <button
+                                type="button"
+                                className="btn-save-lang"
+                                style={{ flex: 1, background: '#10b981', color: '#fff', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
+                                onClick={saveLangModal}
+                                disabled={!newLangKey.trim() || allLangKeys.includes(newLangKey)}
+                              >Save</button>
+                              <button
+                                type="button"
+                                className="btn-cancel-lang"
+                                style={{ flex: 1, background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, padding: 8, fontWeight: 600, cursor: 'pointer' }}
+                                onClick={() => setShowLangModal(false)}
+                              >Cancel</button>
+                            </div>
+                            {allLangKeys.includes(newLangKey) && <div style={{ color: 'red', marginTop: 8 }}>Key already exists.</div>}
                           </div>
-                          {allLangKeys.includes(newLangKey) && <div style={{ color: 'red', marginTop: 8 }}>Key already exists.</div>}
                         </Modal>
                 if (field.type === 'screenSelect') {
                   return (
