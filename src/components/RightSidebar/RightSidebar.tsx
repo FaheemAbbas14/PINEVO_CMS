@@ -90,8 +90,9 @@ const modalStyles = {
     borderRadius: 8,
     padding: 24,
     width: 'auto',
-    height: 'auto',
-    maxHeight: '40vh',
+    // Remove fixed height and maxHeight for dynamic sizing
+    // height: 'auto',
+    // maxHeight: '40vh',
     overflowY: 'visible' as React.CSSProperties['overflowY'],
     display: 'inline-block',
   },
@@ -121,18 +122,29 @@ export default function RightSidebar() {
 
   // Language management state
 
-  // Load languages from localStorage if available, else fallback to initialLocales
+  // Load all languages from localStorage (not just initialLocales)
   const getPersistedLocales = () => {
     const langs: { [key: string]: Translations } = {};
-    for (const lang of Object.keys(initialLocales)) {
-      const persisted = loadLanguageFromProject(lang);
-      langs[lang] = Object.keys(persisted).length > 0 ? persisted : getLocaleByKey(lang);
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
+        const lang = key.replace('project_lang_', '').replace('.json', '');
+        langs[lang] = loadLanguageFromProject(lang);
+      }
     }
     return langs;
   };
 
   const [languages, setLanguages] = useState<{ [key: string]: Translations }>(getPersistedLocales());
   const [showLangModal, setShowLangModal] = useState(false);
+
+  // Always reload languages from persistent storage when opening the add-key modal
+  const openLangModal = () => {
+    const persisted = getPersistedLocales();
+    setLanguages(persisted);
+    setNewLangValues(Object.fromEntries(Object.keys(persisted).map(l => [l, ''])));
+    setShowLangModal(true);
+  };
   const [newLangKey, setNewLangKey] = useState('');
   const [newLangValues, setNewLangValues] = useState<{ [lang: string]: string }>({});
   const [langTargetField, setLangTargetField] = useState<string>('');
@@ -439,7 +451,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                           type="button"
                           className="btn-add-lang"
                           style={{ padding: '2px 8px', fontSize: 18, fontWeight: 700, borderRadius: 4, border: '1px solid #e5e7eb', background: '#f3f4f6', cursor: 'pointer' }}
-                          onClick={() => { setLangTargetField(field.key); setNewLangKey(''); setNewLangValues(Object.fromEntries(Object.keys(languages).map(l => [l, '']))); setShowLangModal(true); }}
+                          onClick={() => { setLangTargetField(field.key); setNewLangKey(''); openLangModal(); }}
                           title="Add new language string"
                         >+
                         </button>
@@ -590,9 +602,9 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
         contentLabel="Add New Language String"
         ariaHideApp={false}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div>
           <h3 style={{ marginBottom: 16, color: '#000', fontWeight: 'bold' }}>Add New Key for Language</h3>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ overflowY: 'auto' }}>
             <div className="property-field">
               <label htmlFor="new-lang-key-input">Key</label>
               <input
@@ -618,7 +630,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
               </div>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 0 }}>
             <button
               type="button"
               className="btn-save-lang"

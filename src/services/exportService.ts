@@ -1,6 +1,5 @@
 import JSZip from 'jszip';
-import enLocale from '../locales/en.json';
-import daLocale from '../locales/da.json';
+
 import { loadLanguageFromProject } from '../locales/persistLanguage';
 
 // Load persisted language JSON once for all export functions
@@ -1051,8 +1050,8 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
   // Add language files from persisted storage if available, else fallback to static
   const persistedEn = loadLanguageFromProject('en');
   const persistedDa = loadLanguageFromProject('da');
-  jsonFolder.file('languages/en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
-  jsonFolder.file('languages/da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
+  jsonFolder.file('languages/en.json', JSON.stringify(persistedEn, null, 2));
+  jsonFolder.file('languages/da.json', JSON.stringify(persistedDa, null, 2));
 
   // Add config with supported languages
   const config = {
@@ -1098,8 +1097,8 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   if (!langFolder) {
     throw new Error('Failed to create lang export folder.');
   }
-  langFolder.file('en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
-  langFolder.file('da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
+  langFolder.file('en.json', JSON.stringify(persistedEn, null, 2));
+  langFolder.file('da.json', JSON.stringify(persistedDa, null, 2));
 
   // Add config with supported languages
   const config = {
@@ -1173,8 +1172,8 @@ export async function generateBLEDeploymentBundle(
   // Add language files to ui/lang/ from persisted storage if available
   const langFolder2 = zip.folder('ui/lang');
   if (langFolder2) {
-    langFolder2.file('en.json', JSON.stringify(Object.keys(persistedEn).length ? persistedEn : enLocale, null, 2));
-    langFolder2.file('da.json', JSON.stringify(Object.keys(persistedDa).length ? persistedDa : daLocale, null, 2));
+    langFolder2.file('en.json', JSON.stringify(persistedEn, null, 2));
+    langFolder2.file('da.json', JSON.stringify(persistedDa, null, 2));
   }
 
   const addTextFile = (path: string, content: string) => {

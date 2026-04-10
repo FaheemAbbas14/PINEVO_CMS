@@ -22,12 +22,11 @@ function useLanguage() {
 function LanguageProvider({ children }: { readonly children: React.ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en');
 
-  // Always use persisted translations if available, fallback to static locales
+  // Always use persisted translations; return empty string if not found
   const t = (key: string) => {
     const persisted = loadLanguageFromProject(locale);
     if (persisted && typeof persisted[key] === 'string') return persisted[key];
-    const fallback = (locales as Record<string, Record<string, string>>)[locale][key];
-    return typeof fallback === 'string' ? fallback : '';
+    return '';
   };
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale]);
