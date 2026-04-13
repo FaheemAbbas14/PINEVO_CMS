@@ -359,6 +359,31 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     await downloadExportZip('html');
   }, [downloadExportZip]);
 
+
+  // Helper to collect all language assets from localStorage
+  function collectAllLanguages() {
+    const langs: Record<string, any> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
+        const lang = key.replace('project_lang_', '').replace('.json', '');
+        try {
+          langs[lang] = JSON.parse(localStorage.getItem(key) || '{}');
+        } catch {
+          langs[lang] = {};
+        }
+      }
+    }
+    return langs;
+  }
+
+  // Helper to restore all language assets to localStorage
+  function restoreAllLanguages(langs: Record<string, any>) {
+    Object.entries(langs).forEach(([lang, translations]) => {
+      localStorage.setItem(`project_lang_${lang}.json`, JSON.stringify(translations));
+    });
+  }
+
   const saveProject = useCallback(async () => {
     if (!state.project) {
       alert('No project to save. Please create or open a project first.');
@@ -370,6 +395,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       screens: state.screens,
       activeScreenId: state.activeScreenId,
       sandboxConfig: state.sandboxConfig,
+      languages: collectAllLanguages(),
     };
 
     const json = JSON.stringify(projectData, null, 2);
@@ -418,6 +444,34 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const loadProject = useCallback(() => {
     const pickerWindow = globalThis as any;
 
+    function handleImport(importedState: any) {
+      if (!importedState.project || !importedState.screens) {
+        alert('Invalid project file. Please select a valid PINEVO project file.');
+        return;
+      }
+
+      // Patch: Ensure all text components with labelKey have labelMode: 'lang'
+      importedState.screens.forEach((screen: any) => {
+        if (Array.isArray(screen.components)) {
+          screen.components.forEach((component: any) => {
+            if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
+              component.labelMode = 'lang';
+            }
+          });
+        }
+      });
+
+      // Restore language assets if present
+      if (importedState.languages) {
+        restoreAllLanguages(importedState.languages);
+      }
+
+      dispatch({ type: 'SET_PROJECT', payload: importedState.project });
+      dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
+      dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
+      dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
+    }
+
     if (typeof pickerWindow.showOpenFilePicker === 'function') {
       void (async () => {
         try {
@@ -436,27 +490,8 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
           const projectData = JSON.parse(text);
           const importedState = projectData.state || projectData;
 
-          if (!importedState.project || !importedState.screens) {
-            alert('Invalid project file. Please select a valid PINEVO project file.');
-            return;
-          }
-
-          // Patch: Ensure all text components with labelKey have labelMode: 'lang'
-          importedState.screens.forEach((screen: any) => {
-            if (Array.isArray(screen.components)) {
-              screen.components.forEach((component: any) => {
-                if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
-                  component.labelMode = 'lang';
-                }
-              });
-            }
-          });
-
           currentProjectFileHandleRef.current = handle;
-          dispatch({ type: 'SET_PROJECT', payload: importedState.project });
-          dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
-          dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
-          dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
+          handleImport(importedState);
         } catch (err: any) {
           if (err?.name === 'AbortError') {
             return;
@@ -480,27 +515,8 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
         const projectData = JSON.parse(text);
         const importedState = projectData.state || projectData;
 
-        if (!importedState.project || !importedState.screens) {
-          alert('Invalid project file. Please select a valid PINEVO project file.');
-          return;
-        }
-
         currentProjectFileHandleRef.current = null;
-        // Patch: Ensure all text components with labelKey have labelMode: 'lang'
-        importedState.screens.forEach((screen: any) => {
-          if (Array.isArray(screen.components)) {
-            screen.components.forEach((component: any) => {
-              if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
-                component.labelMode = 'lang';
-              }
-            });
-          }
-        });
-        // Load the project data
-        dispatch({ type: 'SET_PROJECT', payload: importedState.project });
-        dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
-        dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
-        dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
+        handleImport(importedState);
       } catch (err) {
         console.error('Error loading project:', err);
         alert('Failed to load project. Please select a valid PINEVO project file.');

@@ -48,6 +48,18 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
     description: 'Switch application language',
     type: 'device',
   },
+  {
+    value: 'start_scanner',
+    label: 'Start Scanner',
+    description: 'Start the hardware scanner',
+    type: 'device',
+  },
+   {
+    value: 'stop_scanner',
+    label: 'Stop Scanner',
+    description: 'Stop the hardware scanner',
+    type: 'device',
+  },
 ];
 
 // ============================================================================

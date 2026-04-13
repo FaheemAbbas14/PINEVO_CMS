@@ -2,9 +2,10 @@
 
 PINEVO CMS is a React and TypeScript editor for building PIN Evo and Flex device screen flows. The app lets you create projects, manage multiple screens, place UI components on the device canvas, configure hardware-button behavior, preview interactions, and export the result.
 
+
 ## Multi-Language Support
 
-All language changes (add/edit/delete keys, values, or languages) are saved with your project file and restored when you open it. See [MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md) for details.
+All language changes (add/edit/delete keys, values, or languages) are now saved directly inside your project file and restored when you open it—even on a different device or browser. See [MULTI_LANGUAGE_SUPPORT.md](MULTI_LANGUAGE_SUPPORT.md) for details.
 
 ## Development
 
@@ -51,6 +52,37 @@ Use the Export button in the top bar to choose the output format.
 - BLE deployment workflow scaffolding
 - BLE modal can connect to custom config service UUID `abcdef01-1234-5678-9abc-def012345678` and send a dummy test payload to RX characteristic UUID `abcdef02-1234-5678-9abc-def012345678` when Deploy to Device is clicked
 - BLE modal currently uses a fixed 244-byte payload chunk strategy (targeting MTU 247 links)
+
+## Firmware Event Handler
+
+A generic event handler for firmware JSON messages is provided in `src/utils/firmwareEventHandler.ts`.
+
+- Handles messages with `{ type, payload }` structure.
+- Maintains a registry of event types mapped to handler functions.
+- Displays messages in `<div id="firmware-message"></div>` with CSS class support for styling.
+- Gracefully handles unknown types and malformed messages.
+- Easily extensible via `registerFirmwareEvent(type, handler)`.
+
+**Example usage:**
+```js
+import { handleFirmwareEvent, registerFirmwareEvent } from './src/utils/firmwareEventHandler';
+
+// Receiving a message from firmware (e.g., WebSocket, BLE, etc.)
+handleFirmwareEvent('{"type":"barcode_scanned","payload":{"barcode":"123456"}}');
+
+// Register a new event type
+registerFirmwareEvent('custom_event', (payload) => {
+  // custom handling
+});
+```
+
+**Example CSS:**
+```css
+.firmware-message { padding: 8px; border-radius: 4px; margin: 8px 0; }
+.firmware-message.info { background: #e0f7fa; color: #006064; }
+.firmware-message.error { background: #ffebee; color: #c62828; }
+.firmware-message.warning { background: #fff8e1; color: #ff8f00; }
+```
 
 ## Stack
 

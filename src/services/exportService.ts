@@ -627,6 +627,7 @@ function buildFirmwareJsonComponent(
       font: component.fontSize || 14,
       color: component.color || '#1a1a2e',
       font_src: '',
+      font_name: component.fontFamily || '',
       text: component.text || '',
       labelKey: component.labelKey,
       labelMode: component.labelMode,
@@ -683,6 +684,7 @@ function buildFirmwareJsonComponent(
       text_color: component.color || '#1a1a2e',
       font: component.fontSize || 14,
       font_src: '',
+      font_name: component.fontFamily || '',
       text: component.text || '',
       placeholder: component.placeholder || '',
       border_radius: component.borderRadius || 8,
@@ -893,13 +895,13 @@ function generateScreenHtml(
   const components = normalizedScreen.components
     .map((component, index) => renderFirmwareComponent(component, index, targetByScreenId, embeddedAssetRefs))
     .filter(Boolean);
-  if (isHomeScreen(normalizedScreen, targetByScreenId)) {
-    components.push(createRuntimeUiTypeIndicatorTag('html', canvasSize));
-  }
+  // Removed automatic UI: HTML label injection for home screen
   const hardwareMappings = renderHardwareMappings(normalizedScreen, targetByScreenId);
   const sections = [components.join('\n'), hardwareMappings].filter(Boolean).join('\n');
 
-  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
+  // Add font_name attribute to screen tag if any text/text_input component has a fontFamily
+  const fontName = (normalizedScreen.components.find(c => (c.type === 'text' || c.type === 'text_input') && c.fontFamily)?.fontFamily) || '';
+  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" font_name="${escapeAttr(fontName)}" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
 }
 
 function generateIndexHtml(state: CMSState, screenFileNames: Map<string, string>) {
@@ -1034,6 +1036,8 @@ function generateScreenJsonExport(
 
   const screenTarget = targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name);
 
+  // Add font_name to screen if any text/text_input component has a fontFamily
+  const fontName = (normalizedScreen.components.find(c => (c.type === 'text' || c.type === 'text_input') && c.fontFamily)?.fontFamily) || '';
   return JSON.stringify(
     {
       screen: {
@@ -1042,6 +1046,7 @@ function generateScreenJsonExport(
         width: canvasSize.width,
         height: canvasSize.height,
         font_src: '',
+        font_name: fontName,
         bg_image_src: '',
         id: normalizedScreen.id,
         components,

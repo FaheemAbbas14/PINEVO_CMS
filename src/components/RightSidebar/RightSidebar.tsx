@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { convertImageToPngStrict } from '../../utils/pngConvert';
 import { useLanguage } from '../../App';
 import Modal from 'react-modal';
 
@@ -10,10 +11,24 @@ type CanvasComponent = {
   [key: string]: any;
 };
 // Configuration for dynamic fields per component type
+// Font detection utility
+function getFontOptions() {
+  // Hardcoded for now, but could be dynamic via import.meta.glob or a build step
+  return [
+    { value: 'Carlito-Regular', label: 'Carlito Regular', file: '/src/assets/fonts/Carlito-Regular.ttf' },
+    { value: 'Carlito-BoldItalic', label: 'Carlito Bold Italic', file: '/src/assets/fonts/Carlito-BoldItalic.ttf' },
+    { value: 'Carlito-Italic', label: 'Carlito Italic', file: '/src/assets/fonts/Carlito-Italic.ttf' },
+    { value: 'Carlito-BoldItalic-1', label: 'Carlito Bold Italic (1)', file: '/src/assets/fonts/Carlito-BoldItalic (1).ttf' },
+  ];
+}
+
+const FONT_OPTIONS = getFontOptions();
+
 const FIELD_CONFIG = {
   text: [
     { key: 'labelKey', label: 'Text', type: 'langKey' },
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'fontWeight', label: 'Font Weight', type: 'select', options: [{ value: 'normal', label: 'Normal' }, { value: 'bold', label: 'Bold' }] },
   ],
@@ -21,6 +36,7 @@ const FIELD_CONFIG = {
     { key: 'labelKey', label: 'Label', type: 'langKey' },
     { key: 'placeholderKey', label: 'Placeholder', type: 'langKey' },
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#ffffff' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
@@ -369,14 +385,23 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
   };
 }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        handleChange('imageUrl', event.target?.result);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    // Only allow formats defined in project config
+    const allowed = (window as any).EXPORT_CONFIG?.pngUpload?.allowedFormats || ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!ext || !allowed.includes(ext)) {
+      alert('Unsupported image format. Allowed: ' + allowed.join(', '));
+      return;
+    }
+    try {
+      const { dataUrl, width, height, size } = await convertImageToPngStrict(file);
+      // Optionally, check dimensions and file size here (e.g., max width/height, max size)
+      // Example: if (width > 320 || height > 240) { ... reject ... }
+      handleChange('imageUrl', dataUrl);
+    } catch (err: any) {
+      alert('Image upload failed: ' + (err?.message || 'Could not convert image to compatible PNG.'));
     }
   };
 
@@ -410,6 +435,21 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
             <h3 className="group-title">Properties</h3>
             <div className="property-grid">
               {FIELD_CONFIG[selectedComponent.type].map(field => {
+                                if (field.type === 'fontSelect' && Array.isArray(field.options)) {
+                                  return (
+                                    <div className="property-field" key={field.key}>
+                                      <label>{field.label}</label>
+                                      <select
+                                        value={localValues[field.key] || field.options[0]?.value}
+                                        onChange={e => handleChange(field.key, e.target.value)}
+                                      >
+                                        {field.options.map((opt: any) => (
+                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  );
+                                }
                 // Conditional rendering based on dependencies
                 if ('dependsOn' in field && field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
                 if (field.type === 'select' && 'options' in field && Array.isArray(field.options)) {

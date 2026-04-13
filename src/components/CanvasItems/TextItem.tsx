@@ -60,6 +60,7 @@ export default function TextItem({ component }: Props) {
         color: component.color,
         fontSize: `${component.fontSize}px`,
         fontWeight: component.fontWeight || 'normal',
+        fontFamily: component.fontFamily ? `'${component.fontFamily}', sans-serif` : undefined,
         textAlign: 'left',
         justifyContent: 'flex-start',
         alignItems: 'flex-start',

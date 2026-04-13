@@ -1,3 +1,27 @@
+/* Font faces for all fonts in assets/fonts */
+@font-face {
+  font-family: 'Carlito-Regular';
+  src: url('./src/assets/fonts/Carlito-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: 'Carlito-BoldItalic';
+  src: url('./src/assets/fonts/Carlito-BoldItalic.ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Carlito-Italic';
+  src: url('./src/assets/fonts/Carlito-Italic.ttf') format('truetype');
+  font-style: italic;
+}
+@font-face {
+  font-family: 'Carlito-BoldItalic-1';
+  src: url('./src/assets/fonts/Carlito-BoldItalic (1).ttf') format('truetype');
+  font-weight: bold;
+  font-style: italic;
+}
 .app-container {
   display: flex;
   flex-direction: column;

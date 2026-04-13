@@ -69,6 +69,13 @@ export const BLE_CONFIG = {
 // ============================================================================
 
 export const EXPORT_CONFIG = {
+        // PNG upload constraints for image assets
+        pngUpload: {
+            maxWidth: 320, // update as needed
+            maxHeight: 240, // update as needed
+            maxFileSize: 100 * 1024, // 100 KB, update as needed
+            allowedFormats: ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'],
+        },
     // App name embedded in export metadata.
     appName: 'PINEVO CMS',
     // Export metadata version.
