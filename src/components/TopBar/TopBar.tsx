@@ -31,7 +31,7 @@ function getFirstEnabledDeployType(): DeployUIType {
   return 'json';
 }
 
-export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
+export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarProps>) {
 
   const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -177,7 +177,7 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
               </button>
               <button className="btn-save btn-compact" onClick={() => {
                 // Ensure any pending sidebar edits are committed before saving
-                if (sidebarRef && sidebarRef.current && typeof sidebarRef.current.commitEdits === 'function') {
+                if (typeof sidebarRef?.current?.commitEdits === 'function') {
                   sidebarRef.current.commitEdits();
                 } else if (selectedComponent) {
                   updateComponent(selectedComponent);
@@ -236,7 +236,17 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
                   <div className="export-dropdown" role="menu">
                     <div className="export-dropdown-label">Select export format</div>
                     {FEATURE_FLAGS.enableHtmlUiFormat && (
-                      <button className="export-option" onClick={() => { setSelectedDeployType('html'); void saveAsHtml(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as HTML">
+                      <button className="export-option" onClick={() => {
+                        // Commit sidebar edits before exporting HTML
+                        if (typeof sidebarRef?.current?.commitEdits === 'function') {
+                          sidebarRef.current.commitEdits();
+                        } else if (selectedComponent) {
+                          updateComponent(selectedComponent);
+                        }
+                        setSelectedDeployType('html');
+                        void saveAsHtml();
+                        setShowExportDropdown(false);
+                      }} role="menuitem" aria-label="Export project as HTML">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
@@ -245,7 +255,17 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
                       </button>
                     )}
                     {FEATURE_FLAGS.enableJsonUiFormat && (
-                      <button className="export-option" onClick={() => { setSelectedDeployType('json'); void saveScreens(); setShowExportDropdown(false); }} role="menuitem" aria-label="Export project as JSON">
+                      <button className="export-option" onClick={() => {
+                        // Commit sidebar edits before exporting JSON
+                        if (typeof sidebarRef?.current?.commitEdits === 'function') {
+                          sidebarRef.current.commitEdits();
+                        } else if (selectedComponent) {
+                          updateComponent(selectedComponent);
+                        }
+                        setSelectedDeployType('json');
+                        void saveScreens();
+                        setShowExportDropdown(false);
+                      }} role="menuitem" aria-label="Export project as JSON">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                           <polyline points="14 2 14 8 20 8" />
@@ -271,7 +291,15 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
               )}
               <button
                 className={`btn-deploy btn-compact ${bleDevice ? 'connected' : ''}`}
-                onClick={() => setShowBLEModal(true)}
+                onClick={() => {
+                  // Commit sidebar edits before deploying
+                  if (typeof sidebarRef?.current?.commitEdits === 'function') {
+                    sidebarRef.current.commitEdits();
+                  } else if (selectedComponent) {
+                    updateComponent(selectedComponent);
+                  }
+                  setShowBLEModal(true);
+                }}
                 aria-label={bleDevice ? `Connected to ${bleDevice.name}` : 'Deploy project'}
               >
                 {bleDevice ? (

@@ -176,20 +176,33 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
         selectedComponentId: action.payload.component.id,
       };
 
-    case 'UPDATE_COMPONENT':
+    case 'UPDATE_COMPONENT': {
+      // Find the old component by selectedComponentId
+      const oldComponentId = state.selectedComponentId;
+      const newComponentId = action.payload.component.id;
+      let updatedScreens = state.screens.map((s) => {
+        if (s.id !== action.payload.screenId) return s;
+        // If the ID changed, replace by old ID
+        const hasIdChanged = s.components.some((c) => c.id === oldComponentId && c.id !== newComponentId);
+        return {
+          ...s,
+          components: s.components.map((c) => {
+            if (hasIdChanged) {
+              return c.id === oldComponentId ? action.payload.component : c;
+            } else {
+              return c.id === newComponentId ? action.payload.component : c;
+            }
+          }),
+        };
+      });
+      // If the ID changed, update selectedComponentId
+      const idChanged = oldComponentId && oldComponentId !== newComponentId;
       return {
         ...state,
-        screens: state.screens.map((s) =>
-          s.id === action.payload.screenId
-            ? {
-              ...s,
-              components: s.components.map((c) =>
-                c.id === action.payload.component.id ? action.payload.component : c
-              ),
-            }
-            : s
-        ),
+        screens: updatedScreens,
+        selectedComponentId: idChanged ? newComponentId : state.selectedComponentId,
       };
+    }
 
     case 'DELETE_COMPONENT':
       return {
