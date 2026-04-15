@@ -10,7 +10,10 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "convert-fonts": "bash ./convert-fonts.sh",
+    "export-html-fonts": "cp lvgl/fonts/*.c Desktop/ui/html/fonts/ || true",
+    "deploy": "npm run convert-fonts && npm run export-html-fonts && npm run dev"
   },
   "dependencies": {
     "@types/uuid": "^10.0.0",

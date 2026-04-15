@@ -38,6 +38,8 @@ export interface CanvasComponent {
   bgColor?: string;     // background color (button/image bg)
   imageUrl?: string;    // image src
   fontWeight?: string;
+  /** Font family for text rendering (persisted and exported) */
+  fontFamily?: string;
   borderRadius?: number;
 
   // Button & Interaction Enhancements

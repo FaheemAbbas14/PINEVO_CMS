@@ -69,6 +69,8 @@ export const BLE_CONFIG = {
 // ============================================================================
 
 export const EXPORT_CONFIG = {
+            // Control whether fonts are included in export/deployment bundles
+            includeFontsInExport: false,
         // PNG upload constraints for image assets
         pngUpload: {
             maxWidth: 320, // update as needed

@@ -30,7 +30,7 @@ const FIELD_CONFIG = {
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
-    { key: 'fontWeight', label: 'Font Weight', type: 'select', options: [{ value: 'normal', label: 'Normal' }, { value: 'bold', label: 'Bold' }] },
+    // Font Weight removed
   ],
   text_input: [
     { key: 'labelKey', label: 'Label', type: 'langKey' },
@@ -524,6 +524,26 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                         value={localValues[field.key] || ('default' in field ? field.default : '')}
                         onChange={e => handleChange(field.key, e.target.value)}
                       />
+                    </div>
+                  );
+                }
+                if (field.type === 'number' && field.key === 'fontSize') {
+                  // Replace fontSize number input with dropdown
+                  const FONT_SIZES = [14, 16, 20, 22, 24, 26];
+                  const selectedValue = localValues[field.key] !== undefined && localValues[field.key] !== null
+                    ? localValues[field.key]
+                    : FONT_SIZES[0];
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <select
+                        value={selectedValue}
+                        onChange={e => handleChange(field.key, Number(e.target.value))}
+                      >
+                        {FONT_SIZES.map(size => (
+                          <option key={size} value={size}>{size}</option>
+                        ))}
+                      </select>
                     </div>
                   );
                 }

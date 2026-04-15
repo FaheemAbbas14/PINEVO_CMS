@@ -1,3 +1,46 @@
+// Helper to collect all used font family/size pairs in the project
+function getFontKey(family: string | undefined, size: number | undefined) {
+  const fontFileMap: Record<string, string> = {
+    'Carlito-Regular': 'carlito-regular',
+    'Carlito-Bold': 'carlito-bold',
+    'Carlito-Italic': 'carlito-italic',
+    'Carlito-BoldItalic': 'carlito-bolditalic',
+    'Carlito-Bold-Italic': 'carlito-bolditalic',
+    'Carlito-Bold Italic': 'carlito-bolditalic',
+  };
+  const base = fontFileMap[family || 'Carlito-Regular'] || (family ? family.toLowerCase().replaceAll(' ', '-') : 'carlito-regular');
+  return `${base}_${size || 14}`;
+}
+function collectUsedFontFiles(screens: Screen[]): string[] {
+  const usedFonts = new Set<string>();
+  for (const screen of screens) {
+    for (const component of screen.components) {
+      let family = component.fontFamily;
+      if ((component.type === 'text' || component.type === 'text_input' || component.type === 'button') && !family) {
+        family = 'Carlito-Regular';
+      }
+      let size = component.fontSize || 14;
+      if (component.type === 'text' || component.type === 'text_input' || component.type === 'button') {
+        usedFonts.add(`${family}_${size}`);
+      }
+    }
+  }
+  const fontFileMap: Record<string, string> = {
+    'Carlito-Regular': 'carlito-regular',
+    'Carlito-Bold': 'carlito-bold',
+    'Carlito-Italic': 'carlito-italic',
+    'Carlito-BoldItalic': 'carlito-bolditalic',
+    'Carlito-Bold-Italic': 'carlito-bolditalic',
+    'Carlito-Bold Italic': 'carlito-bolditalic',
+  };
+  const files: string[] = [];
+  for (const fontKey of usedFonts) {
+    const [family, size] = fontKey.split('_');
+    const base = fontFileMap[family] || family.toLowerCase().replaceAll(' ', '-');
+    files.push(`${base}_${size}.c`);
+  }
+  return files;
+}
 import JSZip from 'jszip';
 
 import { loadLanguageFromProject } from '../locales/persistLanguage';
@@ -588,25 +631,14 @@ function isHomeScreen(screen: Screen, targetByScreenId: Map<string, string>) {
   return target === 'home';
 }
 
-function createRuntimeUiTypeIndicatorTag(format: DeployUIType, canvasSize: { width: number; height: number }) {
-  return buildTag('label', [
-    ['x', Math.max(8, canvasSize.width - 110)],
-    ['y', 8],
-    ['font', 12],
-    ['color', '#64748b'],
-    ['font_src', ''],
-    ['text', `UI: ${format.toUpperCase()}`],
-  ]);
-}
 
 function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize: { width: number; height: number }) {
   return {
     type: 'label',
     x: Math.max(8, canvasSize.width - 110),
     y: 8,
-    font: 12,
+    font: getFontKey('Carlito-Regular', 12),
     color: '#64748b',
-    font_src: '',
     text: `UI: ${format.toUpperCase()}`,
     labelKey: undefined,
     labelMode: undefined,
@@ -619,15 +651,20 @@ function buildFirmwareJsonComponent(
   targetByScreenId: Map<string, string>,
   embeddedAssetRefs: Map<string, string>
 ) {
+  // Default font logic for JSON export
+
+  // Helper to get the font key in the format carlito-regular_22
+  const fontKey = (component.type === 'text' || component.type === 'text_input' || component.type === 'button')
+    ? getFontKey(component.fontFamily, component.fontSize)
+    : undefined;
+
   if (component.type === 'text') {
     return {
       type: 'label',
       x: component.x,
       y: component.y,
-      font: component.fontSize || 14,
+      font: fontKey,
       color: component.color || '#1a1a2e',
-      font_src: '',
-      font_name: component.fontFamily || '',
       text: component.text || '',
       labelKey: component.labelKey,
       labelMode: component.labelMode,
@@ -647,8 +684,7 @@ function buildFirmwareJsonComponent(
       height: component.height,
       bg_color: component.bgColor || '#4f46e5',
       text_color: component.color || '#ffffff',
-      font: component.fontSize || 14,
-      font_src: '',
+      font: fontKey,
       tag: normalizedKey,
       key: normalizedKey,
       label: component.text || 'Button',
@@ -682,9 +718,7 @@ function buildFirmwareJsonComponent(
       height: component.height,
       bg_color: component.bgColor || '#ffffff',
       text_color: component.color || '#1a1a2e',
-      font: component.fontSize || 14,
-      font_src: '',
-      font_name: component.fontFamily || '',
+      font: fontKey,
       text: component.text || '',
       placeholder: component.placeholder || '',
       border_radius: component.borderRadius || 8,
@@ -751,14 +785,19 @@ function renderFirmwareComponent(
   targetByScreenId: Map<string, string>,
   embeddedAssetRefs: Map<string, string>
 ) {
+  // Default font logic: if fontFamily is empty, set to first font in dropdown
+  // Helper to get the font key in the format carlito-regular_22
+  const fontKey = (component.type === 'text' || component.type === 'text_input' || component.type === 'button')
+    ? getFontKey(component.fontFamily, component.fontSize)
+    : undefined;
+
   if (component.type === 'text') {
     const hasLabelKey = !!component.labelKey;
     return buildTag('label', [
       ['x', component.x],
       ['y', component.y],
-      ['font', component.fontSize || 14],
+      ['font', fontKey],
       ['color', component.color || '#1a1a2e'],
-      ['font_src', ''],
       ['text', hasLabelKey ? '' : (component.text || '')],
       ['data-label-key', component.labelKey],
       // 'data-label-mode' removed
@@ -776,8 +815,7 @@ function renderFirmwareComponent(
       ['height', component.height],
       ['bg_color', component.bgColor || '#4f46e5'],
       ['text_color', component.color || '#ffffff'],
-      ['font', component.fontSize || 14],
-      ['font_src', ''],
+      ['font', fontKey],
       ['tag', normalizedKey],
       ['key', normalizedKey],
       ['label', component.text || 'Button'],
@@ -810,8 +848,7 @@ function renderFirmwareComponent(
       ['height', component.height],
       ['bg_color', component.bgColor || '#ffffff'],
       ['text_color', component.color || '#1a1a2e'],
-      ['font', component.fontSize || 14],
-      ['font_src', ''],
+      ['font', fontKey],
       ['text', hasLabelKey ? '' : (component.text || '')],
       ['placeholder', component.placeholder || ''],
       ['border_radius', component.borderRadius || 8],
@@ -863,26 +900,6 @@ function renderFirmwareComponent(
   return '';
 }
 
-function renderHardwareMappings(screen: Screen, targetByScreenId: Map<string, string>) {
-  const configured = Object.entries(screen.hardwareButtons || {}).filter(([, config]) => config);
-  if (configured.length === 0) {
-    return '';
-  }
-
-  return configured
-    .map(([buttonId, rawConfig]) => {
-      const config = normalizeHardwareButtonConfig(rawConfig);
-      const target = config?.goToScreen ? targetByScreenId.get(config.goToScreen) || '' : '';
-      return buildTag('hardware_button', [
-        ['key', buttonId],
-        ['target', target],
-        ['input_action', normalizeExportInputAction(config?.inputAction)],
-        ['command', config?.command || ''],
-      ]);
-    })
-    .join('\n');
-}
-
 function generateScreenHtml(
   state: CMSState,
   screen: Screen,
@@ -896,12 +913,28 @@ function generateScreenHtml(
     .map((component, index) => renderFirmwareComponent(component, index, targetByScreenId, embeddedAssetRefs))
     .filter(Boolean);
   // Removed automatic UI: HTML label injection for home screen
-  const hardwareMappings = renderHardwareMappings(normalizedScreen, targetByScreenId);
+  const hardwareMappings = (() => {
+    const configured = Object.entries(normalizedScreen.hardwareButtons || {}).filter(([, config]) => config);
+    if (configured.length === 0) {
+      return '';
+    }
+    return configured
+      .map(([buttonId, rawConfig]) => {
+        const config = normalizeHardwareButtonConfig(rawConfig);
+        const target = config?.goToScreen ? targetByScreenId.get(config.goToScreen) || '' : '';
+        return buildTag('hardware_button', [
+          ['key', buttonId],
+          ['target', target],
+          ['input_action', normalizeExportInputAction(config?.inputAction)],
+          ['command', config?.command || ''],
+        ]);
+      })
+      .join('\n');
+  })();
   const sections = [components.join('\n'), hardwareMappings].filter(Boolean).join('\n');
 
-  // Add font_name attribute to screen tag if any text/text_input component has a fontFamily
-  const fontName = (normalizedScreen.components.find(c => (c.type === 'text' || c.type === 'text_input') && c.fontFamily)?.fontFamily) || '';
-  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" font_src="" font_name="${escapeAttr(fontName)}" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
+  // Remove font_name/font_src from screen tag in HTML export
+  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
 }
 
 function generateIndexHtml(state: CMSState, screenFileNames: Map<string, string>) {
@@ -1036,8 +1069,7 @@ function generateScreenJsonExport(
 
   const screenTarget = targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name);
 
-  // Add font_name to screen if any text/text_input component has a fontFamily
-  const fontName = (normalizedScreen.components.find(c => (c.type === 'text' || c.type === 'text_input') && c.fontFamily)?.fontFamily) || '';
+  // Remove font_name/font_src from screen tag in JSON export
   return JSON.stringify(
     {
       screen: {
@@ -1045,8 +1077,6 @@ function generateScreenJsonExport(
         bg_color: '#ffffff',
         width: canvasSize.width,
         height: canvasSize.height,
-        font_src: '',
-        font_name: fontName,
         bg_image_src: '',
         id: normalizedScreen.id,
         components,
@@ -1110,11 +1140,26 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
   const screenFileNames = buildScreenFileMap(state.screens, 'html');
   const targetByScreenId = buildScreenTargetMap(state.screens);
   const assetRegistry = await collectEmbeddedAssets(state.screens);
+  // Only include fonts if enabled in config
+  if (EXPORT_CONFIG.includeFontsInExport) {
+    try {
+      const fontFiles = collectUsedFontFiles(state.screens);
+      console.log('[Export] Including font files:', fontFiles);
+      for (const file of fontFiles) {
+        const response = await fetch(`/fonts/${file}`);
+        if (response.ok) {
+          const data = await response.arrayBuffer();
+          zip.folder('ui/html/fonts')?.file(file, data);
+        }
+      }
+    } catch {
+      // Ignore if fetch fails (explicitly ignored for linter)
+    }
+  }
 
   if (!uiFolder) {
     throw new Error('Failed to create ui export folder.');
   }
-
 
   // Add all language files from persisted storage
   const langFolder = uiFolder.folder('lang');
@@ -1172,6 +1217,23 @@ export async function generateBLEDeploymentBundle(
 
   const zip = new JSZip();
   const configFolder = zip.folder('config');
+
+  // Only include fonts if enabled in config
+  if (EXPORT_CONFIG.includeFontsInExport) {
+    try {
+      const fontFiles = collectUsedFontFiles(state.screens);
+      console.log('[BLE Deploy] Including font files:', fontFiles);
+      for (const file of fontFiles) {
+        const response = await fetch(`/fonts/${file}`);
+        if (response.ok) {
+          const data = await response.arrayBuffer();
+          zip.folder('ui/html/fonts')?.file(file, data);
+        }
+      }
+    } catch {
+      // Ignore if fetch fails (explicitly ignored for linter)
+    }
+  }
   const canvasSize = getCanvasSize(state.project?.type);
   const targetByScreenId = buildScreenTargetMap(state.screens);
   // Only use rawDeploymentImages if EXPORT_CONFIG.deploymentImageFormat is 'raw'
@@ -1299,3 +1361,4 @@ export function createBLEZipDeploymentPackets(bundle: UIDeploymentBundle): BLEZi
     },
   };
 }
+
