@@ -14,6 +14,7 @@ import './TopBar.css';
 
 interface TopBarProps {
   readonly onOpenSimulator?: () => void;
+  sidebarRef?: React.RefObject<any>;
 }
 
 interface BLEDevice {
@@ -30,7 +31,7 @@ function getFirstEnabledDeployType(): DeployUIType {
   return 'json';
 }
 
-export default function TopBar({ onOpenSimulator }: TopBarProps) {
+export default function TopBar({ onOpenSimulator, sidebarRef }: TopBarProps) {
 
   const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -176,7 +177,9 @@ export default function TopBar({ onOpenSimulator }: TopBarProps) {
               </button>
               <button className="btn-save btn-compact" onClick={() => {
                 // Ensure any pending sidebar edits are committed before saving
-                if (selectedComponent) {
+                if (sidebarRef && sidebarRef.current && typeof sidebarRef.current.commitEdits === 'function') {
+                  sidebarRef.current.commitEdits();
+                } else if (selectedComponent) {
                   updateComponent(selectedComponent);
                 }
                 saveProject();

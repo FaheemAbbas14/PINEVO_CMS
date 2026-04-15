@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { convertImageToPngStrict } from '../../utils/pngConvert';
 import { useLanguage } from '../../App';
 import Modal from 'react-modal';
@@ -128,13 +128,31 @@ import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
 import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
 
-export default function RightSidebar() {
+
+const RightSidebar = forwardRef(function RightSidebar(_, ref) {
+  // Only declare these once
   const { locale } = useLanguage();
   const { state, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig } = useCMS();
   const [localValues, setLocalValues] = useState<CanvasComponent>(selectedComponent || {
     id: '', type: '', x: 0, y: 0, width: 0, height: 0
   });
   const [showToast, setShowToast] = useState(false);
+
+  // Expose a commit handler to parent (TopBar)
+  useImperativeHandle(ref, () => ({
+    commitEdits: () => {
+      if (
+        typeof localValues.id === 'string' && localValues.id &&
+        typeof localValues.type === 'string' && localValues.type &&
+        typeof localValues.x === 'number' &&
+        typeof localValues.y === 'number' &&
+        typeof localValues.width === 'number' &&
+        typeof localValues.height === 'number'
+      ) {
+        updateComponent(localValues as import('../../types').CanvasComponent);
+      }
+    }
+  }), [localValues]);
 
   // Language management state
 
@@ -321,9 +339,19 @@ export default function RightSidebar() {
     );
   }
 
+  // Handle property changes, including ID uniqueness validation
   const handleChange = (key: string, value: any) => {
     if (!localValues) return;
     let updated = { ...localValues, [key]: value };
+    // If editing the ID, validate uniqueness
+    if (key === 'id') {
+      const allIds = state.screens.flatMap(s => s.components.map(c => c.id)).filter(id => id !== selectedComponent?.id);
+      if (allIds.includes(value)) {
+        // Show error and do not update
+        alert('ID must be unique');
+        return;
+      }
+    }
     // If a language key is being set, also set labelMode to 'lang'
     if (key === 'labelKey') {
       updated.labelMode = 'lang';
@@ -338,7 +366,6 @@ export default function RightSidebar() {
       typeof updated.width === 'number' &&
       typeof updated.height === 'number'
     ) {
-      // Type assertion is safe here due to the above checks
       updateComponent(updated as import('../../types').CanvasComponent);
     }
   };
@@ -426,6 +453,23 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 />
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* ID field always visible and editable */}
+        <section className="property-group">
+          <h3 className="group-title">Component ID</h3>
+          <div className="property-grid">
+            <div className="property-field">
+              <label htmlFor="component-id-input">ID</label>
+              <input
+                id="component-id-input"
+                type="text"
+                value={localValues.id || ''}
+                onChange={e => handleChange('id', e.target.value)}
+                style={{ borderColor: '#e5e7eb', borderRadius: 4, padding: 4 }}
+              />
+            </div>
           </div>
         </section>
 
@@ -714,4 +758,5 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
       </Modal>
     </aside>
   );
-}
+});
+export default RightSidebar;

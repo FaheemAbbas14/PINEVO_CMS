@@ -39,6 +39,7 @@ function LanguageProvider({ children }: { readonly children: React.ReactNode }) 
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { CMSProvider, useCMS } from './context/AppContext';
 import TopBar from './components/TopBar/TopBar';
+import { useRef } from 'react';
 import LeftSidebar from './components/LeftSidebar/LeftSidebar';
 import Canvas from './components/Canvas/Canvas';
 import RightSidebar from './components/RightSidebar/RightSidebar';
@@ -153,11 +154,12 @@ function AppContent() {
   }
 
   // Show editor when project exists
+  const sidebarRef = useRef<any>(null);
   return (
     <DndProvider backend={HTML5Backend}>
       <div className={`app-container ${state.sandboxMode ? 'sandbox-mode' : ''} ${state.previewMode ? 'preview-mode' : ''}`}>
         <a href="#main-content" className="skip-link">Skip to main content</a>
-        <TopBar onOpenSimulator={() => setShowPINSimulator(true)} />
+        <TopBar onOpenSimulator={() => setShowPINSimulator(true)} sidebarRef={sidebarRef} />
         {state.sandboxMode && (
           <div className="sandbox-banner" role="status" aria-live="polite">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -192,7 +194,7 @@ function AppContent() {
               </div>
             </div>
           </div>
-          <RightSidebar />
+          <RightSidebar ref={sidebarRef} />
         </main>
         <PINSimulator
           isOpen={showPINSimulator}

@@ -182,10 +182,11 @@ interface EmbeddedAssetCollectionOptions {
   rawDeploymentImages?: boolean;
 }
 
+// Export payload includes all component IDs for firmware
 function createExportPayload(state: CMSState): ExportPayload {
   const componentCount = state.screens.reduce((total, screen) => total + screen.components.length, 0);
   const screens = state.screens.map(normalizeScreenHardwareButtons);
-
+  // IDs are included in each component object
   return {
     meta: {
       app: 'PINEVO CMS',
@@ -632,8 +633,9 @@ function isHomeScreen(screen: Screen, targetByScreenId: Map<string, string>) {
 }
 
 
-function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize: { width: number; height: number }) {
+function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize: { width: number; height: number }, id?: string) {
   return {
+    id: id || `ui_type_indicator_${format}`,
     type: 'label',
     x: Math.max(8, canvasSize.width - 110),
     y: 8,
@@ -645,21 +647,23 @@ function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize:
   };
 }
 
+// Always include the component ID in firmware JSON export
 function buildFirmwareJsonComponent(
   component: CanvasComponent,
   index: number,
   targetByScreenId: Map<string, string>,
   embeddedAssetRefs: Map<string, string>
 ) {
-  // Default font logic for JSON export
-
-  // Helper to get the font key in the format carlito-regular_22
   const fontKey = (component.type === 'text' || component.type === 'text_input' || component.type === 'button')
     ? getFontKey(component.fontFamily, component.fontSize)
     : undefined;
 
+  // All types include id
+  const base = { id: component.id };
+
   if (component.type === 'text') {
     return {
+      ...base,
       type: 'label',
       x: component.x,
       y: component.y,
@@ -675,8 +679,8 @@ function buildFirmwareJsonComponent(
     const target = component.goToScreen ? targetByScreenId.get(component.goToScreen) || '' : '';
     const derivedKey = extractNumericKey(component.text);
     const normalizedKey = derivedKey || String(index + 1);
-
     return {
+      ...base,
       type: 'button',
       x: component.x,
       y: component.y,
@@ -699,6 +703,7 @@ function buildFirmwareJsonComponent(
 
   if (component.type === 'image') {
     return {
+      ...base,
       type: 'image',
       x: component.x,
       y: component.y,
@@ -711,6 +716,7 @@ function buildFirmwareJsonComponent(
 
   if (component.type === 'text_input') {
     return {
+      ...base,
       type: 'input',
       x: component.x,
       y: component.y,
@@ -731,6 +737,7 @@ function buildFirmwareJsonComponent(
 
   if (component.type === 'audio') {
     return {
+      ...base,
       type: 'audio',
       x: component.x,
       y: component.y,
@@ -745,6 +752,7 @@ function buildFirmwareJsonComponent(
 
   if (component.type === 'api') {
     return {
+      ...base,
       type: 'api',
       x: component.x,
       y: component.y,
@@ -760,6 +768,7 @@ function buildFirmwareJsonComponent(
 
   if (component.type === 'command') {
     return {
+      ...base,
       type: 'command',
       x: component.x,
       y: component.y,
@@ -771,6 +780,7 @@ function buildFirmwareJsonComponent(
   }
 
   return {
+    ...base,
     type: component.type,
     x: component.x,
     y: component.y,
@@ -791,9 +801,13 @@ function renderFirmwareComponent(
     ? getFontKey(component.fontFamily, component.fontSize)
     : undefined;
 
+  // Always include id attribute for all components
+  const idAttr: [string, string | number | boolean | undefined] = ['id', component.id];
+
   if (component.type === 'text') {
     const hasLabelKey = !!component.labelKey;
     return buildTag('label', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['font', fontKey],
@@ -809,6 +823,7 @@ function renderFirmwareComponent(
     const derivedKey = extractNumericKey(component.text);
     const normalizedKey = derivedKey || String(index + 1);
     return buildTag('button', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -830,6 +845,7 @@ function renderFirmwareComponent(
 
   if (component.type === 'image') {
     return buildTag('image', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -842,6 +858,7 @@ function renderFirmwareComponent(
   if (component.type === 'text_input') {
     const hasLabelKey = !!component.labelKey;
     return buildTag('input', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -861,6 +878,7 @@ function renderFirmwareComponent(
 
   if (component.type === 'audio') {
     return buildTag('audio', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -874,6 +892,7 @@ function renderFirmwareComponent(
 
   if (component.type === 'api') {
     return buildTag('api', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -888,6 +907,7 @@ function renderFirmwareComponent(
 
   if (component.type === 'command') {
     return buildTag('command', [
+      idAttr,
       ['x', component.x],
       ['y', component.y],
       ['width', component.width],
@@ -1052,7 +1072,7 @@ function generateScreenJsonExport(
     buildFirmwareJsonComponent(component, index, targetByScreenId, embeddedAssetRefs)
   );
   if (isHomeScreen(normalizedScreen, targetByScreenId)) {
-    components.push(createRuntimeUiTypeIndicatorComponent('json', canvasSize));
+    components.push(createRuntimeUiTypeIndicatorComponent('json', canvasSize, `ui_type_indicator_${screen.id}`));
   }
 
   const hardwareButtons =
