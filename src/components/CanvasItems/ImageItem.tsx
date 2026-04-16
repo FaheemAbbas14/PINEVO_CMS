@@ -1,18 +1,38 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import './CanvasItem.css';
+import { measureText } from '../../utils/measureText';
 
 interface Props {
   component: CanvasComponent;
 }
 
 export default function ImageItem({ component }: Props) {
-  const { selectComponent, state } = useCMS();
+  const { selectComponent, state, updateComponent } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const itemRef = useRef<HTMLDivElement>(null);
+  const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
+  // Dynamically calculate width/height based on image presence
+  useEffect(() => {
+    let newWidth = component.width;
+    let newHeight = component.height;
+    if (component.imageUrl) {
+      // Use default or keep as is, or could measure image if needed
+      newWidth = 160;
+      newHeight = 120;
+    } else {
+      // Placeholder size
+      newWidth = 120;
+      newHeight = 80;
+    }
+    setDynamicSize({ width: newWidth, height: newHeight });
+    if (component.width !== newWidth || component.height !== newHeight) {
+      updateComponent({ ...component, width: newWidth, height: newHeight });
+    }
+  }, [component.imageUrl]);
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.EXISTING_COMPONENT,
@@ -48,8 +68,8 @@ export default function ImageItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: component.width,
-        height: component.height,
+        width: dynamicSize.width,
+        height: dynamicSize.height,
       }}
       onClick={(e) => {
         e.stopPropagation();

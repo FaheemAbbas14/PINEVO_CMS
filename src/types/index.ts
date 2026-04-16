@@ -17,6 +17,8 @@ export const FLEX_CANVAS_HEIGHT = 800;
 export type ComponentType = 'text' | 'text_input' | 'button' | 'image' | 'api' | 'command' | 'audio';
 
 export interface CanvasComponent {
+  /** Human-friendly, editable ID for UI and export */
+  displayId?: string;
       /** Mode for label: 'static' or 'lang' */
       labelMode?: 'static' | 'lang';
       /** Mode for placeholder: 'static' or 'lang' */

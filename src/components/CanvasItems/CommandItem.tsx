@@ -1,19 +1,35 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import './CanvasItem.css';
+import { measureText } from '../../utils/measureText';
 
 interface Props {
   component: CanvasComponent;
 }
 
 export default function CommandItem({ component }: Props) {
-  const { selectComponent, state } = useCMS();
+  const { selectComponent, state, updateComponent } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const itemRef = useRef<HTMLDivElement>(null);
   const isPreviewMode = state.previewMode;
+  const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
+  // Dynamically calculate width/height based on label
+  useEffect(() => {
+    const label = 'CMD';
+    const font = '11px monospace';
+    const { width, height } = measureText(label, font);
+    const padW = 40;
+    const padH = 16;
+    const newWidth = width + padW;
+    const newHeight = height + padH;
+    setDynamicSize({ width: newWidth, height: newHeight });
+    if (component.width !== newWidth || component.height !== newHeight) {
+      updateComponent({ ...component, width: newWidth, height: newHeight });
+    }
+  }, []);
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.EXISTING_COMPONENT,
@@ -54,8 +70,8 @@ export default function CommandItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: component.width,
-        height: component.height,
+        width: dynamicSize.width,
+        height: dynamicSize.height,
         backgroundColor: '#1e293b',
         color: '#f8fafc',
         borderRadius: '8px',

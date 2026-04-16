@@ -4,6 +4,7 @@ import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import { useLanguage } from '../../App';
+import { measureText } from '../../utils/measureText';
 import './CanvasItem.css';
 
 interface Props {
@@ -15,6 +16,7 @@ export default function TextInputItem({ component }: Props) {
     const isSelected = state.selectedComponentId === component.id;
     const itemRef = useRef<HTMLDivElement>(null);
     const [displayText, setDisplayText] = useState(component.text || 'Input');
+    const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
     const { t } = useLanguage();
 
     const isPreviewMode = state.previewMode;
@@ -110,6 +112,29 @@ export default function TextInputItem({ component }: Props) {
         ? (component.placeholderKey ? t(component.placeholderKey) : '')
         : (component.placeholder || 'Enter text...');
 
+    // Dynamically calculate width/height based on label and placeholder
+    useEffect(() => {
+        const fontSize = component.fontSize || 14;
+        const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
+        const font = `${fontSize}px ${fontFamily}`;
+        // Use the longer of label or placeholder
+        const labelText = label || '';
+        const placeholderText = placeholder || '';
+        const mainText = labelText.length > placeholderText.length ? labelText : placeholderText;
+        const { width, height } = measureText(mainText, font);
+        const padW = 32;
+        const padH = 16;
+        const newWidth = width + padW;
+        const newHeight = height + padH;
+        setDynamicSize({ width: newWidth, height: newHeight });
+        if (component.width !== newWidth || component.height !== newHeight) {
+            // updateComponent is available from useCMS
+            if (typeof (window as any).updateComponent === 'function') {
+                (window as any).updateComponent({ ...component, width: newWidth, height: newHeight });
+            }
+        }
+    }, [label, placeholder, component.fontSize, component.fontFamily]);
+
     return (
         <div
             ref={setRefs}
@@ -117,8 +142,8 @@ export default function TextInputItem({ component }: Props) {
             style={{
                 left: component.x,
                 top: component.y,
-                width: component.width,
-                height: component.height,
+                width: dynamicSize.width,
+                height: dynamicSize.height,
                 fontSize: `${component.fontSize}px`,
             }}
             onClick={(e) => {

@@ -1,18 +1,34 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import type { CanvasComponent } from '../../types';
 import './CanvasItem.css';
+import { measureText } from '../../utils/measureText';
 
 interface Props {
     component: CanvasComponent;
 }
 
 export default function AudioItem({ component }: Props) {
-    const { selectComponent, state } = useCMS();
+    const { selectComponent, state, updateComponent } = useCMS();
     const isSelected = state.selectedComponentId === component.id;
     const itemRef = useRef<HTMLDivElement>(null);
+    const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width || 200, height: component.height || 60 });
+    // Dynamically calculate width/height based on label
+    useEffect(() => {
+        const label = 'Audio';
+        const font = '12px sans-serif';
+        const { width, height } = measureText(label, font);
+        const padW = 60;
+        const padH = 24;
+        const newWidth = width + padW;
+        const newHeight = height + padH;
+        setDynamicSize({ width: newWidth, height: newHeight });
+        if (component.width !== newWidth || component.height !== newHeight) {
+            updateComponent({ ...component, width: newWidth, height: newHeight });
+        }
+    }, [component.audioUrl]);
 
     const [{ isDragging }, drag] = useDrag(() => ({
         type: DragTypes.EXISTING_COMPONENT,
@@ -66,8 +82,8 @@ export default function AudioItem({ component }: Props) {
             style={{
                 left: component.x,
                 top: component.y,
-                width: component.width || 200,
-                height: component.height || 60,
+                width: dynamicSize.width,
+                height: dynamicSize.height,
             }}
             onClick={handleClick}
         >

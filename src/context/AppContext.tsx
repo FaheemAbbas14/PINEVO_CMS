@@ -82,12 +82,14 @@ function downloadFile(content: Blob | string, mimeType: string, fileName: string
 
 // Helper to create default state
 function getDefaultState(): CMSState {
+  const initialScreenId = uuidv4();
+  const initialComponentId = uuidv4();
   const initialScreen: Screen = {
-    id: 'textbox1',
+    id: initialScreenId,
     name: 'Screen 1',
     components: [
       {
-        id: uuidv4(),
+        id: initialComponentId,
         type: 'text_input',
         x: 100,
         y: 100,
@@ -106,7 +108,7 @@ function getDefaultState(): CMSState {
   return {
     project: null,
     screens: [initialScreen],
-    activeScreenId: initialScreen.id,
+    activeScreenId: initialScreenId,
     selectedComponentId: null,
     sandboxMode: false,
     previewMode: false,
@@ -343,18 +345,21 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       const screen = state.screens.find(s => s.id === state.activeScreenId);
       let index = 1;
       if (screen) {
-        // Count existing components of this type in the screen
-        index = screen.components.filter(c => c.type === component.type).length + 1;
+        // Find the next available index for this type (e.g., label1, label2, ...)
+        const baseType = component.type === 'text_input' ? 'textbox' : (component.type === 'text' ? 'label' : component.type);
+        const usedIndexes = screen.components
+          .filter(c => (c.type === component.type) && c.displayId && c.displayId.startsWith(baseType))
+          .map(c => parseInt((c.displayId || '').replace(baseType, ''), 10))
+          .filter(n => !isNaN(n));
+        // Find the smallest unused index
+        index = 1;
+        while (usedIndexes.includes(index)) {
+          index++;
+        }
+        const displayId = `${baseType}${index}`;
+        let compWithId = { ...component, id: uuidv4(), displayId };
+        dispatch({ type: 'ADD_COMPONENT', payload: { screenId: state.activeScreenId, component: compWithId } });
       }
-      const baseType = component.type === 'text_input' ? 'textbox' : (component.type === 'text' ? 'label' : component.type);
-      const defaultId = `${baseType}${index}`;
-      // If user did not provide an id, set default
-      let compWithId = { ...component, id: component.id || defaultId };
-      // If the id is a UUID, replace with human-friendly
-      if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(compWithId.id)) {
-        compWithId.id = defaultId;
-      }
-      dispatch({ type: 'ADD_COMPONENT', payload: { screenId: state.activeScreenId, component: compWithId } });
     },
     [state.activeScreenId, state.screens]
   );

@@ -439,7 +439,25 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
         <span className="component-type-tag">{selectedComponent.type.toUpperCase()}</span>
       </div>
 
+
       <div className="properties-scroll">
+        {/* Human-friendly displayId field always visible and editable - moved to top */}
+        <section className="property-group">
+          <h3 className="group-title">Component ID</h3>
+          <div className="property-grid">
+            <div className="property-field">
+              <label htmlFor="component-id-input">ID</label>
+              <input
+                id="component-id-input"
+                type="text"
+                value={localValues.displayId || ''}
+                onChange={e => handleChange('displayId', e.target.value)}
+                style={{ borderColor: '#e5e7eb', borderRadius: 4, padding: 4 }}
+              />
+            </div>
+          </div>
+        </section>
+
         <section className="property-group">
           <h3 className="group-title">Layout</h3>
           <div className="property-grid">
@@ -453,23 +471,6 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 />
               </div>
             ))}
-          </div>
-        </section>
-
-        {/* ID field always visible and editable */}
-        <section className="property-group">
-          <h3 className="group-title">Component ID</h3>
-          <div className="property-grid">
-            <div className="property-field">
-              <label htmlFor="component-id-input">ID</label>
-              <input
-                id="component-id-input"
-                type="text"
-                value={localValues.id || ''}
-                onChange={e => handleChange('id', e.target.value)}
-                style={{ borderColor: '#e5e7eb', borderRadius: 4, padding: 4 }}
-              />
-            </div>
           </div>
         </section>
 
