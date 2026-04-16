@@ -361,10 +361,8 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
 
         <LanguageManagementModal
           isOpen={showLangModal}
-          onClose={() => { setShowLangModal(false); reloadLanguagesFromStorage(); }}
+          onClose={() => setShowLangModal(false)}
           locale={locale}
-          languages={languages}
-          setLanguages={setLanguages}
         />
       </header>
 

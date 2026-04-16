@@ -1,6 +1,6 @@
 import React, { useState, createContext, useContext, useMemo } from 'react';
 import { DndProvider } from 'react-dnd';
-import { locales } from './locales';
+
 import { loadLanguageFromProject } from './locales/persistLanguage';
 import type { Locale } from './locales/types';
 // --- Language Context and Provider ---
@@ -54,6 +54,7 @@ function AppContent() {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showPINSimulator, setShowPINSimulator] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const sidebarRef = useRef<any>(null);
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 150));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 75));
@@ -154,7 +155,6 @@ function AppContent() {
   }
 
   // Show editor when project exists
-  const sidebarRef = useRef<any>(null);
   return (
     <DndProvider backend={HTML5Backend}>
       <div className={`app-container ${state.sandboxMode ? 'sandbox-mode' : ''} ${state.previewMode ? 'preview-mode' : ''}`}>

@@ -113,16 +113,10 @@ const modalStyles = {
     display: 'inline-block',
   },
 };
-import { locales as initialLocales } from '../../locales';
+
 
 // Add type-safe accessor for initialLocales
-const getLocaleByKey = (lang: string): Translations => {
-  if (lang in initialLocales) {
-    // @ts-expect-error: Indexing by string is safe for known keys
-    return initialLocales[lang];
-  }
-  return {};
-};
+
 // Do not re-import Translations type, already defined above
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
@@ -392,7 +386,7 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
       await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('en', updatedLangs['en']);
       await (globalThis as any).__writeLangFile && (globalThis as any).__writeLangFile('da', updatedLangs['da']);
       alert('Language files updated successfully!');
-    } catch (e) {
+    } catch {
       alert('Failed to update language files. Please check file permissions.');
     }
   };
@@ -416,14 +410,14 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
     const file = e.target.files?.[0];
     if (!file) return;
     // Only allow formats defined in project config
-    const allowed = (window as any).EXPORT_CONFIG?.pngUpload?.allowedFormats || ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'];
+    const allowed = (globalThis as any).EXPORT_CONFIG?.pngUpload?.allowedFormats || ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'];
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!ext || !allowed.includes(ext)) {
       alert('Unsupported image format. Allowed: ' + allowed.join(', '));
       return;
     }
     try {
-      const { dataUrl, width, height, size } = await convertImageToPngStrict(file);
+      const { dataUrl } = await convertImageToPngStrict(file);
       // Optionally, check dimensions and file size here (e.g., max width/height, max size)
       // Example: if (width > 320 || height > 240) { ... reject ... }
       handleChange('imageUrl', dataUrl);
@@ -480,32 +474,33 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
             <h3 className="group-title">Properties</h3>
             <div className="property-grid">
               {FIELD_CONFIG[selectedComponent.type].map(field => {
-                                if (field.type === 'fontSelect' && Array.isArray(field.options)) {
-                                  return (
-                                    <div className="property-field" key={field.key}>
-                                      <label>{field.label}</label>
-                                      <select
-                                        value={localValues[field.key] || field.options[0]?.value}
-                                        onChange={e => handleChange(field.key, e.target.value)}
-                                      >
-                                        {field.options.map((opt: any) => (
-                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  );
-                                }
-                // Conditional rendering based on dependencies
-                if ('dependsOn' in field && field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
-                if (field.type === 'select' && 'options' in field && Array.isArray(field.options)) {
+                const options = (field as any).options;
+                if (field.type === 'fontSelect' && Array.isArray(options)) {
                   return (
                     <div className="property-field" key={field.key}>
                       <label>{field.label}</label>
                       <select
-                        value={localValues[field.key] || (field.options[0]?.value ?? '')}
+                        value={localValues[field.key] || options[0]?.value}
                         onChange={e => handleChange(field.key, e.target.value)}
                       >
-                        {field.options.map((opt: any) => (
+                        {options.map((opt: any) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                // Conditional rendering based on dependencies
+                if ('dependsOn' in field && field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
+                if (field.type === 'select' && Array.isArray(options)) {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <select
+                        value={localValues[field.key] || (options[0]?.value ?? '')}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      >
+                        {options.map((opt: any) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>

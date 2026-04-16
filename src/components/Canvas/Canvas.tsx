@@ -134,7 +134,7 @@ export default function Canvas() {
         )}
 
         {activeScreen?.components.map((component) => {
-          if (component.type === 'text') return <TextItem key={component.id + '-' + locale} component={component} locale={locale} />;
+          if (component.type === 'text') return <TextItem key={component.id} component={component} locale={locale} />;
           if (component.type === 'text_input') return <TextInputItem key={component.id} component={component} />;
           if (component.type === 'button') return <ButtonItem key={component.id} component={component} />;
           if (component.type === 'image') return <ImageItem key={component.id} component={component} />;

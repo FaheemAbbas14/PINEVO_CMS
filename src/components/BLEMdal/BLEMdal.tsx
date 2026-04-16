@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from 'react-modal';
 import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
-import { locales as initialLocales } from '../../locales';
+
 import './BLEMdal.css';
 import { useCMS } from '../../context/AppContext';
 import { BLE_CONFIG, FEATURE_FLAGS } from '../../config/project';

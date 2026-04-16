@@ -4,7 +4,7 @@ import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import './CanvasItem.css';
-import { measureText } from '../../utils/measureText';
+
 
 interface Props {
   component: CanvasComponent;

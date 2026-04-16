@@ -2,36 +2,39 @@
 // Handles JSON messages from firmware, dispatches to registered handlers, and updates the UI
 
 // Registry of event handlers by type
-const firmwareEventRegistry = {
-  barcode_scanned: (payload) => {
+type FirmwareEventHandler = (payload: any) => void;
+
+
+const firmwareEventRegistry: { [type: string]: FirmwareEventHandler } = {
+  barcode_scanned: (payload: any) => {
     displayFirmwareMessage('Barcode: ' + payload.barcode, 'info');
   },
-  error: (payload) => {
+  error: (payload: any) => {
     displayFirmwareMessage('Error: ' + (payload.message || JSON.stringify(payload)), 'error');
   },
-  info: (payload) => {
+  info: (payload: any) => {
     displayFirmwareMessage(payload.message || JSON.stringify(payload), 'info');
   },
-  warning: (payload) => {
+  warning: (payload: any) => {
     displayFirmwareMessage(payload.message || JSON.stringify(payload), 'warning');
   },
   // Add more event types here as needed
 };
 
 // Main handler function
-export function handleFirmwareEvent(rawMessage) {
-  let msg;
+export function handleFirmwareEvent(rawMessage: any) {
+  let msg: any;
   try {
     msg = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage;
-  } catch (e) {
+  } catch {
     displayFirmwareMessage('Malformed message: ' + String(rawMessage), 'error');
     return;
   }
-  if (!msg || typeof msg.type !== 'string' || typeof msg.payload === 'undefined') {
+  if (!msg || typeof msg.type !== 'string' || msg.payload === undefined) {
     displayFirmwareMessage('Malformed message: ' + JSON.stringify(msg), 'error');
     return;
   }
-  const handler = firmwareEventRegistry[msg.type];
+  const handler: any = firmwareEventRegistry[msg.type];
   if (handler) {
     handler(msg.payload);
   } else {
@@ -40,7 +43,7 @@ export function handleFirmwareEvent(rawMessage) {
 }
 
 // Display message on the active screen
-function displayFirmwareMessage(message, type = 'info') {
+function displayFirmwareMessage(message: any, type: string = 'info') {
   const el = document.getElementById('firmware-message');
   if (!el) return;
   el.textContent = message;
@@ -48,8 +51,9 @@ function displayFirmwareMessage(message, type = 'info') {
   el.classList.add('firmware-message', type);
 }
 
-// Allow easy extension
-export function registerFirmwareEvent(type, handler) {
+
+
+export function registerFirmwareEvent(type: any, handler: any) {
   firmwareEventRegistry[type] = handler;
 }
 
