@@ -131,6 +131,8 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
     id: '', type: '', x: 0, y: 0, width: 0, height: 0
   });
   const [showToast, setShowToast] = useState(false);
+  // FIX: Always call displayIdError useState before any conditional returns
+  const [displayIdError, setDisplayIdError] = useState<string | null>(null);
 
   // Expose a commit handler to parent (TopBar)
   useImperativeHandle(ref, () => ({
@@ -334,16 +336,23 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   }
 
   // Handle property changes, including ID uniqueness validation
+  // ...existing code...
+  // (displayIdError useState moved to top to avoid hook order issues)
   const handleChange = (key: string, value: any) => {
     if (!localValues) return;
     let updated = { ...localValues, [key]: value };
-    // If editing the ID, validate uniqueness
-    if (key === 'id') {
-      const allIds = state.screens.flatMap(s => s.components.map(c => c.id)).filter(id => id !== selectedComponent?.id);
-      if (allIds.includes(value)) {
-        // Show error and do not update
-        alert('ID must be unique');
-        return;
+    // If editing the displayId, validate uniqueness within the current screen
+    if (key === 'displayId') {
+      const currentScreen = state.screens.find(s => s.id === state.activeScreenId);
+      if (currentScreen) {
+        const allDisplayIds = currentScreen.components
+          .filter(c => c.id !== selectedComponent?.id)
+          .map(c => c.displayId);
+        if (allDisplayIds.includes(value)) {
+          setDisplayIdError('Display ID must be unique in this screen.');
+        } else {
+          setDisplayIdError(null);
+        }
       }
     }
     // If a language key is being set, also set labelMode to 'lang'
@@ -351,8 +360,9 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
       updated.labelMode = 'lang';
     }
     setLocalValues(updated);
-    // Only update if required fields exist
+    // Only update if required fields exist and no displayId error
     if (
+      !displayIdError &&
       typeof updated.id === 'string' && updated.id &&
       typeof updated.type === 'string' && updated.type &&
       typeof updated.x === 'number' &&
@@ -446,8 +456,11 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 type="text"
                 value={localValues.displayId || ''}
                 onChange={e => handleChange('displayId', e.target.value)}
-                style={{ borderColor: '#e5e7eb', borderRadius: 4, padding: 4 }}
+                style={{ borderColor: displayIdError ? '#dc2626' : '#e5e7eb', borderRadius: 4, padding: 4 }}
               />
+              {displayIdError && (
+                <div style={{ color: '#dc2626', fontSize: 12, marginTop: 4 }}>{displayIdError}</div>
+              )}
             </div>
           </div>
         </section>

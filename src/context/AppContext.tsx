@@ -343,20 +343,17 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const addComponent = useCallback(
     (component: CanvasComponent) => {
       const screen = state.screens.find(s => s.id === state.activeScreenId);
-      let index = 1;
       if (screen) {
-        // Find the next available index for this type (e.g., label1, label2, ...)
         const baseType = component.type === 'text_input' ? 'textbox' : (component.type === 'text' ? 'label' : component.type);
-        const usedIndexes = screen.components
-          .filter(c => (c.type === component.type) && c.displayId && c.displayId.startsWith(baseType))
-          .map(c => parseInt((c.displayId || '').replace(baseType, ''), 10))
-          .filter(n => !isNaN(n));
-        // Find the smallest unused index
-        index = 1;
-        while (usedIndexes.includes(index)) {
+        let index = 1;
+        let displayId = `${baseType}${index}`;
+        // Ensure displayId is unique in this canvas
+        const isDisplayIdUsed = (id: string) => screen.components.some(c => c.displayId === id);
+        while (isDisplayIdUsed(displayId)) {
           index++;
+          displayId = `${baseType}${index}`;
         }
-        const displayId = `${baseType}${index}`;
+        // Always assign a unique displayId, regardless of what is in the defaults
         let compWithId = { ...component, id: uuidv4(), displayId };
         dispatch({ type: 'ADD_COMPONENT', payload: { screenId: state.activeScreenId, component: compWithId } });
       }
