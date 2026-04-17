@@ -658,8 +658,8 @@ function buildFirmwareJsonComponent(
     ? getFontKey(component.fontFamily, component.fontSize)
     : undefined;
 
-  // All types include id
-  const base = { id: component.id };
+  // All types include displayId (fallback to id)
+  const base = { id: component.displayId || component.id };
 
   if (component.type === 'text') {
     return {
@@ -801,8 +801,8 @@ function renderFirmwareComponent(
     ? getFontKey(component.fontFamily, component.fontSize)
     : undefined;
 
-  // Always include id attribute for all components
-  const idAttr: [string, string | number | boolean | undefined] = ['id', component.id];
+  // Always include id attribute for all components, prefer displayId if present
+  const idAttr: [string, string | number | boolean | undefined] = ['id', component.displayId || component.id];
 
   if (component.type === 'text') {
     const hasLabelKey = !!component.labelKey;

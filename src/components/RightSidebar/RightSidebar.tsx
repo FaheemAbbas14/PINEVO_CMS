@@ -12,14 +12,21 @@ type CanvasComponent = {
 };
 // Configuration for dynamic fields per component type
 // Font detection utility
+// Dynamically load all TTFs in src/assets/fonts for the font family dropdown
 function getFontOptions() {
-  // Hardcoded for now, but could be dynamic via import.meta.glob or a build step
-  return [
-    { value: 'Carlito-Regular', label: 'Carlito Regular', file: '/src/assets/fonts/Carlito-Regular.ttf' },
-    { value: 'Carlito-BoldItalic', label: 'Carlito Bold Italic', file: '/src/assets/fonts/Carlito-BoldItalic.ttf' },
-    { value: 'Carlito-Italic', label: 'Carlito Italic', file: '/src/assets/fonts/Carlito-Italic.ttf' },
-    { value: 'Carlito-BoldItalic-1', label: 'Carlito Bold Italic (1)', file: '/src/assets/fonts/Carlito-BoldItalic (1).ttf' },
-  ];
+  // Use Vite's import.meta.glob to get all TTFs in src/assets/fonts
+  const fontModules = import.meta.glob('/src/assets/fonts/*.ttf', { as: 'url', eager: true });
+  return Object.entries(fontModules).map(([file, url]) => {
+    // file: '/src/assets/fonts/Roboto-Bold.ttf'
+    const name = file.split('/').pop()?.replace('.ttf', '') || file;
+    // Label: split by dash/underscore and capitalize
+    const label = name.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return {
+      value: name,
+      label,
+      file: url,
+    };
+  });
 }
 
 const FONT_OPTIONS = getFontOptions();
