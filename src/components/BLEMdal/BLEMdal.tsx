@@ -178,7 +178,20 @@ async function writeTestPayload(
         throw new Error('Characteristic does not support write-with-response. Sequential delivery requires ACK-based writes.');
     }
 
-    await characteristic.writeValueWithResponse(buffer);
+    try {
+        await characteristic.writeValueWithResponse(buffer);
+    } catch (err: any) {
+        const charAny = characteristic as any;
+        const enriched = new Error(
+            `${err?.message || err?.name || 'GATT write failed'} ` +
+            `[char_uuid=${charAny.uuid ?? 'n/a'}, payload_bytes=${value.byteLength}, ` +
+            `err_name=${err?.name ?? 'n/a'}, err_code=${err?.code ?? 'n/a'}, ` +
+            `gatt_connected=${charAny.service?.device?.gatt?.connected ?? 'unknown'}]`
+        );
+        (enriched as any).name = err?.name ?? 'GATTWriteError';
+        (enriched as any).originalGATTError = err;
+        throw enriched;
+    }
     return 'with-response';
 }
 
@@ -430,6 +443,11 @@ export default function BLEMdal({
         setDeployPhase('preparing');
         setDeployCurrentChunk(0);
         setDeployTotalChunks(0);
+        // Local tracking vars — always reflect the latest phase/chunk even inside catch.
+        let _phase = 'preparing';
+        let _chunkIndex = 0;
+        let _totalChunks = 0;
+        let _payloadBytes = 0;
         // Create a fresh AbortController for this deployment; the cross button calls abort() on it.
         const deployAbort = new AbortController();
         deployAbortRef.current = deployAbort;
@@ -482,11 +500,15 @@ export default function BLEMdal({
                 ackEnabled: protocolAckEnabled && chunkAckEnabled,
             });
             const packets = createBLEZipDeploymentPackets(bundle);
+            _totalChunks = packets.chunks.length;
             setDeployTotalChunks(packets.chunks.length);
 
             addLog('info', `Bundle file=${bundle.fileName}, bytes=${bundle.bytes.byteLength}, chunks=${packets.chunks.length}`);
             addLog('info', `Device target type=${packets.start.selectedType}, lfs_dir=${packets.start.targetLfsDirectory}`);
+            addLog('info', `Write characteristic UUID: ${(characteristic as any).uuid ?? 'n/a'}`);
+            addLog('info', `MTU used for chunking: ${mtuUsedForChunking} (reported=${reportedMtu}, configuredChunkSize=${configuredChunkSize})`);
 
+            _phase = 'starting';
             setDeployPhase('starting');
             if (protocolAckEnabled && ackChannel) {
                 try {
@@ -524,6 +546,7 @@ export default function BLEMdal({
                 addLog('debug', `Start packet sent (${mode}), no protocol ACK mode`);
             }
 
+            _phase = 'uploading';
             setDeployPhase('uploading');
             for (let index = 0; index < packets.chunks.length; index += 1) {
                 if (signal.aborted) {
@@ -531,7 +554,10 @@ export default function BLEMdal({
                 }
                 const chunkPacket = packets.chunks[index];
                 const expectedIndex = index;
-                    let chunkWasAcked = false;
+                _chunkIndex = index;
+                const chunkPacketPreview = new TextEncoder().encode(JSON.stringify(chunkPacket));
+                _payloadBytes = chunkPacketPreview.byteLength;
+                let chunkWasAcked = false;
                 // Only wait for chunk ACK if both protocol is enabled AND the config flag allows it
                 if (protocolAckEnabled && ackChannel && chunkAckEnabled) {
                     try {
@@ -582,7 +608,7 @@ export default function BLEMdal({
                 setDeployCurrentChunk(index + 1);
 
                 if ((index + 1) % 10 === 0 || index === packets.chunks.length - 1) {
-                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent${chunkWasAcked ? ' and ACKed' : ''}`);
+                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent${chunkWasAcked ? ' and ACKed' : ''} (bytes=${_payloadBytes})`);
                 }
 
                 if (index < packets.chunks.length - 1) {
@@ -597,6 +623,7 @@ export default function BLEMdal({
                 }
             }
 
+            _phase = 'flashing';
             setDeployPhase('flashing');
             if (protocolAckEnabled && ackChannel) {
                 try {
@@ -667,9 +694,31 @@ export default function BLEMdal({
             if (err instanceof DOMException && err.name === 'AbortError') {
                 addLog('warn', 'Deployment cancelled by user');
             } else {
+                const errName = err?.name ?? 'UnknownError';
+                const errMsg = err?.message ?? String(err);
+                const errCode = err?.code ?? 'n/a';
+                const origErr = err?.originalGATTError;
                 console.error('[BLE] Deploy error:', err);
-                addLog('error', `Deploy failed: ${err.message || err.name}`);
-                setError(`Deploy failed: ${err.message || err.name}`);
+                if (origErr) {
+                    console.error('[BLE] Original GATT error:', origErr);
+                }
+                addLog('error', `Deploy failed [${errName}, code=${errCode}]: ${errMsg}`);
+                addLog('error', `--- FIRMWARE DIAGNOSTIC START ---`);
+                addLog('error', `phase: ${_phase}`);
+                addLog('error', `chunk: ${_chunkIndex + 1} / ${_totalChunks}`);
+                addLog('error', `last_payload_bytes: ${_payloadBytes}`);
+                addLog('error', `char_uuid: ${(writeCharacteristic as any)?.uuid ?? 'n/a'}`);
+                addLog('error', `device_name: ${connectedDevice?.name ?? 'n/a'}`);
+                addLog('error', `gatt_connected: ${connectedDevice?.nativeDevice?.gatt?.connected ?? 'unknown'}`);
+                addLog('error', `protocol_ack_enabled: ${protocolAckEnabled}`);
+                addLog('error', `deploy_type: ${deployType}`);
+                if (origErr) {
+                    addLog('error', `original_err_name: ${origErr.name ?? 'n/a'}`);
+                    addLog('error', `original_err_code: ${origErr.code ?? 'n/a'}`);
+                    addLog('error', `original_err_message: ${origErr.message ?? 'n/a'}`);
+                }
+                addLog('error', `--- FIRMWARE DIAGNOSTIC END ---`);
+                setError(`Deploy failed: ${errMsg}`);
             }
             setIsDeploying(false);
             setDeploySuccess(false);

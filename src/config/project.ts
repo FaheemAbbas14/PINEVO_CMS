@@ -20,7 +20,7 @@ export const BLE_CONFIG = {
     // Feature flag: enable protocol-level ACK waiting for zip_* packets.
     // When true, the modal waits for zip_start_ack, zip_chunk_ack, zip_commit_ack.
     // When false, packets are sent without waiting for ACK (faster but less reliable).
-    waitForAckOnChunks: true,
+    waitForAckOnChunks: false,
 
     // UUIDs for the CMS zip deployment flow
     cms: {
