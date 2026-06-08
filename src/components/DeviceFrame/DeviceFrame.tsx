@@ -105,6 +105,10 @@ export default function DeviceFrame({ children }: Props) {
     });
   };
 
+  const clearHardwareButtonInteraction = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction') => {
+    handleHardwareButtonChange(buttonId, field, '');
+  };
+
   const renderConfigBadge = (buttonId: HardwareButtonId) => {
     const config = hardwareButtons[buttonId];
     if (config?.goToScreen || config?.inputAction || config?.command) {
@@ -256,36 +260,58 @@ export default function DeviceFrame({ children }: Props) {
       )}
 
       {selectedHardwareButton && !state.previewMode && (
-        <div className="hardware-config-panel" style={{
-          position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)',
-          background: 'white', padding: '12px 16px', borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, display: 'flex', gap: '12px', alignItems: 'center'
-        }}>
+        <div className="hardware-config-panel">
           <span style={{ fontWeight: 600, fontSize: '12px', textTransform: 'capitalize' }}>
             {selectedHardwareButton.replace('_', ' ')} Button
           </span>
           <span style={{ fontSize: '11px', color: '#64748b' }}>Choose one interaction:</span>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <select
-              value={hardwareButtons[selectedHardwareButton]?.goToScreen || ''}
-              onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'goToScreen', e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
-            >
-              <option value="">Navigate to screen...</option>
-              {state.screens.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            <select
-              value={hardwareButtons[selectedHardwareButton]?.inputAction || ''}
-              onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'inputAction', e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
-            >
-              <option value="">Select action...</option>
-              {DEVICE_ACTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <div className="interaction-select-with-clear">
+              <select
+                value={hardwareButtons[selectedHardwareButton]?.goToScreen || ''}
+                onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'goToScreen', e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
+              >
+                <option value="">Navigate to screen...</option>
+                {state.screens.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {hardwareButtons[selectedHardwareButton]?.goToScreen && (
+                <button
+                  type="button"
+                  className="btn-delink-icon"
+                  onClick={() => clearHardwareButtonInteraction(selectedHardwareButton, 'goToScreen')}
+                  aria-label="De-link screen navigation"
+                  title="De-link screen navigation"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className="interaction-select-with-clear">
+              <select
+                value={hardwareButtons[selectedHardwareButton]?.inputAction || ''}
+                onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'inputAction', e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
+              >
+                <option value="">Select action...</option>
+                {DEVICE_ACTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              {hardwareButtons[selectedHardwareButton]?.inputAction && (
+                <button
+                  type="button"
+                  className="btn-delink-icon"
+                  onClick={() => clearHardwareButtonInteraction(selectedHardwareButton, 'inputAction')}
+                  aria-label="De-link function selection"
+                  title="De-link function selection"
+                >
+                  ×
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

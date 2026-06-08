@@ -84,9 +84,33 @@ function isAckSuccessful(ack: any): boolean {
     return true;
 }
 
+function getAckErrorMessage(ack: any): string {
+    const reason = typeof ack?.reason === 'string' ? ack.reason.trim() : '';
+    if (reason) {
+        return reason;
+    }
+
+    const message = typeof ack?.message === 'string' ? ack.message.trim() : '';
+    if (message) {
+        return message;
+    }
+
+    const error = typeof ack?.error === 'string' ? ack.error.trim() : '';
+    if (error) {
+        return error;
+    }
+
+    try {
+        return JSON.stringify(ack);
+    } catch {
+        return 'Unknown BLE error';
+    }
+}
+
 async function setupAckNotifications(
     service: BluetoothRemoteGATTService,
-    writeCharacteristic: BluetoothRemoteGATTCharacteristic
+    writeCharacteristic: BluetoothRemoteGATTCharacteristic,
+    onAckReceived?: (ack: any) => void
 ): Promise<{
     waitForAck: (matcher: AckMatcher, label: string, timeoutMs?: number) => Promise<any>;
     cleanup: () => Promise<void>;
@@ -111,10 +135,12 @@ async function setupAckNotifications(
 
     const waiters: Array<{
         matcher: AckMatcher;
+        label: string;
         resolve: (ack: any) => void;
         reject: (reason: Error) => void;
         timerId: ReturnType<typeof setTimeout>;
     }> = [];
+    const pendingAcks: any[] = [];
 
     const onAck = (event: Event) => {
         const target = event.target as unknown as BluetoothRemoteGATTCharacteristic;
@@ -124,13 +150,29 @@ async function setupAckNotifications(
             return;
         }
 
+        const ackCmd = String(ack?.cmd || ack?.type || 'unknown').toLowerCase();
+        const isNack = ackCmd.includes('nack') || String(ack?.status || '').toLowerCase() === 'nack' || ack?.ok === false;
+        const ackLogPrefix = isNack ? '[BLE Deploy] NACK received:' : '[BLE Deploy] ACK received:';
+        console[isNack ? 'warn' : 'log'](ackLogPrefix, ack);
+        onAckReceived?.(ack);
+
         for (let index = 0; index < waiters.length; index += 1) {
             const waiter = waiters[index];
             if (waiter.matcher(ack)) {
+                console.log(`[BLE Deploy] ACK/NACK matched command ${waiter.label}:`, ack);
                 clearTimeout(waiter.timerId);
                 waiters.splice(index, 1);
                 waiter.resolve(ack);
                 break;
+            }
+        }
+
+        // Keep unmatched ACK/NACK so late waiter registration can still consume it.
+        const hasMatchInQueue = waiters.some((waiter) => waiter.matcher(ack));
+        if (!hasMatchInQueue) {
+            pendingAcks.push(ack);
+            if (pendingAcks.length > 20) {
+                pendingAcks.shift();
             }
         }
     };
@@ -139,6 +181,14 @@ async function setupAckNotifications(
 
     return {
         waitForAck: (matcher: AckMatcher, label: string, timeoutMs = BLE_CONFIG.timing.ackTimeoutMs) => new Promise((resolve, reject) => {
+            const queuedAckIndex = pendingAcks.findIndex((ack) => matcher(ack));
+            if (queuedAckIndex >= 0) {
+                const queuedAck = pendingAcks.splice(queuedAckIndex, 1)[0];
+                console.log(`[BLE Deploy] ACK/NACK matched command ${label} from queue:`, queuedAck);
+                resolve(queuedAck);
+                return;
+            }
+
             const timerId = setTimeout(() => {
                 const waiterIndex = waiters.findIndex((item) => item.timerId === timerId);
                 if (waiterIndex >= 0) {
@@ -147,7 +197,7 @@ async function setupAckNotifications(
                 reject(new Error(`Timeout waiting for ${label} ACK (${timeoutMs}ms)`));
             }, timeoutMs);
 
-            waiters.push({ matcher, resolve, reject, timerId });
+            waiters.push({ matcher, label, resolve, reject, timerId });
         }),
         cleanup: async () => {
             notifyCharacteristic?.removeEventListener('characteristicvaluechanged', onAck);
@@ -303,6 +353,36 @@ export default function BLEMdal({
     useEffect(() => {
         setBluetoothSupported('bluetooth' in navigator);
     }, []);
+
+    // Track native BLE disconnect events so deployment can be stopped with clear logs.
+    useEffect(() => {
+        const nativeDevice = connectedDevice?.nativeDevice;
+        if (!nativeDevice || typeof nativeDevice.addEventListener !== 'function') {
+            return;
+        }
+
+        const handleNativeDisconnect = () => {
+            addLog('warn', `Device disconnected event received (device=${connectedDevice?.name || 'unknown'})`);
+            setConnectedDevice(null);
+            setWriteCharacteristic(null);
+        };
+
+        nativeDevice.addEventListener('gattserverdisconnected', handleNativeDisconnect);
+        return () => {
+            nativeDevice.removeEventListener('gattserverdisconnected', handleNativeDisconnect);
+        };
+    }, [addLog, connectedDevice]);
+
+    // Dismiss deployment dialog when device disconnects
+    useEffect(() => {
+        if (isOpen && connectedDevice === null && (isDeploying || deployPhase !== 'idle')) {
+            addLog('warn', `Deployment dialog closing because device disconnected (phase=${deployPhase})`);
+            setError('Device disconnected. Closing deployment dialog.');
+            setTimeout(() => {
+                onClose();
+            }, 1500);
+        }
+    }, [addLog, connectedDevice, deployPhase, isDeploying, isOpen, onClose]);
 
     const startScan = useCallback(async () => {
         const bluetooth = navigator.bluetooth;
@@ -486,7 +566,29 @@ export default function BLEMdal({
 
             const service = await server.getPrimaryService(BLE_CONFIG.cms.SERVICE);
             try {
-                ackChannel = await setupAckNotifications(service, characteristic);
+                ackChannel = await setupAckNotifications(service, characteristic, (ack) => {
+                    const cmd = String(ack?.cmd || '').toLowerCase();
+                    if (cmd !== 'zip_commit_ack') {
+                        return;
+                    }
+
+                    if (!isAckSuccessful(ack)) {
+                        return;
+                    }
+
+                    if (_phase !== 'flashing') {
+                        return;
+                    }
+
+                    _phase = 'complete';
+                    setDeployPhase('complete');
+                    setIsDeploying(false);
+                    setDeploySuccess(true);
+                    addLog('info', 'zip_commit_ack(ok) observed on ACK channel; closing deployment dialog.');
+                    setTimeout(() => {
+                        onClose();
+                    }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
+                });
                 protocolAckEnabled = true;
                 addLog('info', 'Protocol ACK channel enabled for start/commit');
             } catch (ackSetupError: any) {
@@ -529,7 +631,7 @@ export default function BLEMdal({
 
                     const startAck = startResponse.ack;
                     if (!isAckSuccessful(startAck)) {
-                        throw new Error(`Device rejected zip_start: ${JSON.stringify(startAck)}`);
+                        throw new Error(`Device rejected zip_start: ${getAckErrorMessage(startAck)}`);
                     }
                     addLog('debug', `Start packet sent (${startResponse.mode}), ack=ok`);
                 } catch (startAckError) {
@@ -634,7 +736,9 @@ export default function BLEMdal({
                         (ack) => {
                             const cmd = String(ack?.cmd || '').toLowerCase();
                             const packet = String(ack?.packet || ack?.type || '').toLowerCase();
-                            return cmd === 'zip_commit_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
+                            return cmd === 'zip_commit_ack'
+                                || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''))
+                                || (cmd === 'zip_nack' && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
                         },
                         'zip_commit',
                         BLE_CONFIG.timing.commitAckTimeoutMs,
@@ -645,10 +749,19 @@ export default function BLEMdal({
                     const commitAck = commitResponse.ack;
 
                     if (!isAckSuccessful(commitAck)) {
-                        throw new Error(`Device rejected zip_commit: ${JSON.stringify(commitAck)}`);
+                        throw new Error(`Device rejected zip_commit: ${getAckErrorMessage(commitAck)}`);
                     }
 
                     addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received.`);
+                    _phase = 'complete';
+                    setDeployPhase('complete');
+                    setIsDeploying(false);
+                    setDeploySuccess(true);
+                    addLog('info', 'Deployment completed on zip_commit_ack; closing dialog now.');
+                    setTimeout(() => {
+                        onClose();
+                    }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
+                    return;
                 } catch (commitAckError) {
                     if (isAckTimeoutError(commitAckError, 'zip_commit')) {
                         const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
@@ -675,12 +788,21 @@ export default function BLEMdal({
                         BLE_CONFIG.timing.commitAckTimeoutMs
                     );
                     addLog('info', `Deployment status received: ${JSON.stringify(commitStatus)}`);
+
+                    if (!isAckSuccessful(commitStatus)) {
+                        throw new Error(`Device rejected zip_commit_status: ${getAckErrorMessage(commitStatus)}`);
+                    }
+
                     setIsDeploying(false);
                     setDeploySuccess(true);
                 } catch (statusError) {
-                    addLog('warn', `zip_commit_status timeout or error: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
-                    setIsDeploying(false);
-                    setDeploySuccess(true);
+                    if (isAckTimeoutError(statusError, 'zip_commit_status')) {
+                        addLog('warn', `zip_commit_status timeout or error: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
+                        setIsDeploying(false);
+                        setDeploySuccess(true);
+                    } else {
+                        throw statusError;
+                    }
                 }
             } else {
                 setIsDeploying(false);
