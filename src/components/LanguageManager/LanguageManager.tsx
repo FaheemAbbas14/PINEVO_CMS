@@ -21,7 +21,12 @@ const ISO_LANGUAGES = [
   { code: 'ko', name: 'Korean' },
 ];
 
-import { saveLanguageToProject, loadLanguageFromProject, removeLanguageFromProject } from '../../locales/persistLanguage';
+import {
+  getPersistedLanguageCodes,
+  loadLanguageFromProject,
+  removeLanguageFromProject,
+  saveLanguageToProject,
+} from '../../locales/persistLanguage';
 import type { Locale, Translations } from '../../locales/types';
 
 interface LanguageManagerProps {
@@ -54,13 +59,9 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale 
   // Load all persisted languages from localStorage on mount
   useEffect(() => {
     const loaded: { [key: string]: Translations } = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-        const lang = key.replace('project_lang_', '').replace('.json', '');
-        loaded[lang] = loadLanguageFromProject(lang);
-      }
-    }
+    getPersistedLanguageCodes().forEach((lang) => {
+      loaded[lang] = loadLanguageFromProject(lang);
+    });
     setLanguages(loaded);
     // Set selectedLang to first available or default
     if (Object.keys(loaded).length > 0) {

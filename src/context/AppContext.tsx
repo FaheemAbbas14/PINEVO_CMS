@@ -4,13 +4,108 @@ import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareBut
 import type { DeployUIType } from '../services/exportService';
 import { FEATURE_FLAGS } from '../config/project';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
-import { loadLanguageFromProject, saveLanguageToProject } from '../locales/persistLanguage';
+import {
+  getAllPersistedLanguages,
+  loadLanguageFromProject,
+  restorePersistedLanguages,
+  saveLanguageToProject,
+  setActiveLanguageProjectScope,
+} from '../locales/persistLanguage';
+
+function getLanguageScopeFromProject(project: { id?: string; name?: string } | null | undefined): string | null {
+  if (!project) {
+    return null;
+  }
+
+  const normalizedName = String(project.name || '')
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9_-]+/g, '_')
+    .replaceAll(/_+/g, '_')
+    .replaceAll(/^_|_$/g, '');
+
+  if (normalizedName) {
+    return `project_${normalizedName}`;
+  }
+
+  const normalizedId = String(project.id || '').trim();
+  if (normalizedId) {
+    return `project_${normalizedId}`;
+  }
+
+  return null;
+}
+
+function collectProjectLanguageKeys(screens: Screen[]): string[] {
+  const keys = new Set<string>();
+
+  screens.forEach((screen) => {
+    screen.components.forEach((component) => {
+      const labelKey = String(component.labelKey || '').trim();
+      const placeholderKey = String(component.placeholderKey || '').trim();
+
+      if (labelKey) {
+        keys.add(labelKey);
+      }
+
+      if (placeholderKey) {
+        keys.add(placeholderKey);
+      }
+    });
+  });
+
+  return Array.from(keys);
+}
+
+function syncPersistedLanguageKeysForScreens(screens: Screen[]) {
+  const projectKeys = collectProjectLanguageKeys(screens);
+  const en = loadLanguageFromProject('en');
+  const da = loadLanguageFromProject('da');
+
+  let enUpdated = false;
+  projectKeys.forEach((key) => {
+    if (!(key in en)) {
+      en[key] = key;
+      enUpdated = true;
+    }
+  });
+
+  if (enUpdated) {
+    saveLanguageToProject('en', en);
+  }
+
+  let daUpdated = false;
+  Object.keys(en).forEach((key) => {
+    if (!(key in da)) {
+      da[key] = '';
+      daUpdated = true;
+    }
+  });
+
+  if (daUpdated) {
+    saveLanguageToProject('da', da);
+  }
+}
 
 // Local storage keys
 const STORAGE_KEY = 'pinevo_cms_state';
 
 // Load initial state from localStorage
 function loadInitialState(): CMSState {
+  let parsedSavedState: any = null;
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      parsedSavedState = JSON.parse(saved);
+      const savedScope = getLanguageScopeFromProject(parsedSavedState?.project);
+      if (savedScope) {
+        setActiveLanguageProjectScope(savedScope);
+      }
+    }
+  } catch {
+    // Ignore here; handled below by existing state-load fallback.
+  }
 
   // --- Language persistence sync: ensure da has all en keys ---
   try {
@@ -32,13 +127,11 @@ function loadInitialState(): CMSState {
   }
 
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    if (parsedSavedState) {
       // Validate that we have the required fields and project exists
-      if (parsed.screens && parsed.screens.length > 0 && parsed.project) {
+      if (parsedSavedState.screens && parsedSavedState.screens.length > 0 && parsedSavedState.project) {
         // Patch: Convert UUID ids to human-friendly if needed
-        parsed.screens.forEach((screen: any) => {
+        parsedSavedState.screens.forEach((screen: any) => {
           if (Array.isArray(screen.components)) {
             screen.components.forEach((component: any, idx: number) => {
               let baseType;
@@ -57,7 +150,14 @@ function loadInitialState(): CMSState {
             });
           }
         });
-        return parsed;
+
+        try {
+          syncPersistedLanguageKeysForScreens(parsedSavedState.screens);
+        } catch (e) {
+          console.warn('Failed to sync project language keys during initial load:', e);
+        }
+
+        return parsedSavedState;
       }
     }
   } catch (e) {
@@ -306,6 +406,10 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const [state, dispatch] = useReducer(cmsReducer, initialState);
   const currentProjectFileHandleRef = useRef<FileSystemFileHandle | null>(null);
 
+  useEffect(() => {
+    setActiveLanguageProjectScope(getLanguageScopeFromProject(state.project));
+  }, [state.project?.id, state.project?.name]);
+
   const activeScreen = state.screens.find((s) => s.id === state.activeScreenId);
   const selectedComponent = activeScreen?.components.find((c) => c.id === state.selectedComponentId);
 
@@ -315,6 +419,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       name: project.name,
       type: project.type,
     };
+    setActiveLanguageProjectScope(getLanguageScopeFromProject(newProject));
     dispatch({ type: 'SET_PROJECT', payload: newProject });
   }, []);
 
@@ -413,26 +518,12 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
 
   // Helper to collect all language assets from localStorage
   function collectAllLanguages() {
-    const langs: Record<string, any> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-        const lang = key.replace('project_lang_', '').replace('.json', '');
-        try {
-          langs[lang] = JSON.parse(localStorage.getItem(key) || '{}');
-        } catch {
-          langs[lang] = {};
-        }
-      }
-    }
-    return langs;
+    return getAllPersistedLanguages();
   }
 
   // Helper to restore all language assets to localStorage
   function restoreAllLanguages(langs: Record<string, any>) {
-    Object.entries(langs).forEach(([lang, translations]) => {
-      localStorage.setItem(`project_lang_${lang}.json`, JSON.stringify(translations));
-    });
+    restorePersistedLanguages(langs);
   }
 
   const saveProject = useCallback(async () => {
@@ -500,6 +591,9 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
         alert('Invalid project file. Please select a valid PINEVO project file.');
         return;
       }
+
+      // Switch language storage scope immediately for the imported project.
+      setActiveLanguageProjectScope(getLanguageScopeFromProject(importedState.project));
 
       // Patch: Ensure all text components with labelKey have labelMode: 'lang'
       importedState.screens.forEach((screen: any) => {
@@ -614,6 +708,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const clearSession = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     currentProjectFileHandleRef.current = null;
+    setActiveLanguageProjectScope(null);
     dispatch({ type: 'RESET_STATE' });
   }, []);
 
@@ -625,6 +720,19 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       console.warn('Failed to save state to localStorage:', e);
     }
   }, [state]);
+
+  // Keep EN/DA persisted language keys in sync with all keys used by current project screens.
+  useEffect(() => {
+    if (!state.project) {
+      return;
+    }
+
+    try {
+      syncPersistedLanguageKeysForScreens(state.screens);
+    } catch (e) {
+      console.warn('Failed to sync project language keys from state:', e);
+    }
+  }, [state.project?.id, state.project?.name, state.screens]);
 
   const contextValue = React.useMemo(() => ({
     state,
