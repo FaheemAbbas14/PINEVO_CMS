@@ -56,10 +56,10 @@
 }
 
 .pin-evo-screen-overlay {
-  /* 480px width, 480px height for the white area */
+  /* 480px width, 320px height HVGA landscape white area */
   width: 480px;
-  height: 480px;
-  aspect-ratio: 480 / 480;
+  height: 320px;
+  aspect-ratio: 480 / 320;
   background: white;
   border-radius: 4px;
   overflow: hidden;

@@ -45,8 +45,14 @@ export const BLE_CONFIG = {
         commitAckTimeoutMs: 120000,
         // Number of resend attempts before failing an ACK-based packet.
         ackRetryCount: 2,
-        // Small pause between chunk writes to reduce BLE buffer pressure.
-        interChunkDelayMs: 15,
+        // Number of extra retries for a chunk write in no-ACK mode.
+        noAckChunkWriteRetryCount: 3,
+        // When true, deployment stops immediately on the first chunk write error in no-ACK mode.
+        // Keep false to allow retries using noAckChunkWriteRetryBackoffMs.
+        abortOnAnyChunkWriteError: true,
+        // Backoff schedule (ms) for no-ACK chunk write retries.
+        // The first value is also used as the normal inter-chunk pacing delay.
+        noAckChunkWriteRetryBackoffMs: [30, 50, 80],
         // Delay before closing the deployment dialog after completion.
         deployDialogCloseDelayMs: 250,
         // Default chunk delay used by the legacy BLE deployment service.
@@ -73,8 +79,8 @@ export const EXPORT_CONFIG = {
             includeFontsInExport: false,
         // PNG upload constraints for image assets
         pngUpload: {
-            maxWidth: 320, // update as needed
-            maxHeight: 240, // update as needed
+            maxWidth: 480, // update as needed
+            maxHeight: 320, // update as needed
             maxFileSize: 100 * 1024, // 100 KB, update as needed
             allowedFormats: ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'],
         },

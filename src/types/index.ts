@@ -8,8 +8,8 @@ export interface Project {
 }
 
 // Canvas dimensions (hardware screen constraint)
-export const PIN_EVO_CANVAS_WIDTH = 600;
-export const PIN_EVO_CANVAS_HEIGHT = 480;
+export const PIN_EVO_CANVAS_WIDTH = 480;
+export const PIN_EVO_CANVAS_HEIGHT = 320;
 
 export const FLEX_CANVAS_WIDTH = 480;
 export const FLEX_CANVAS_HEIGHT = 800;

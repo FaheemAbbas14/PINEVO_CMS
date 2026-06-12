@@ -111,7 +111,7 @@ export default function NewProjectModal({ isOpen, onClose, onCreate }: NewProjec
                             {projectType === 'pin_evo' ? (
                                 <div className="info-card pin-evo">
                                     <h4>PIN Evo</h4>
-                                    <p>Canvas: 600 x 480px</p>
+                                    <p>Canvas: 480 x 320px</p>
                                     <p>Hardware: PIN Evo device</p>
                                 </div>
                             ) : (

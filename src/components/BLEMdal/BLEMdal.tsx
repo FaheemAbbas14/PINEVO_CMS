@@ -13,6 +13,8 @@ import {
 
 type AckMatcher = (ack: any) => boolean;
 
+const FALLBACK_NO_ACK_CHUNK_RETRY_BACKOFF_MS = [20, 50, 100, 200];
+
 function isAckTimeoutError(error: unknown, label: string): boolean {
     return error instanceof Error && error.message.includes(`Timeout waiting for ${label} ACK`);
 }
@@ -243,6 +245,99 @@ async function writeTestPayload(
         throw enriched;
     }
     return 'with-response';
+}
+
+function isNoAckChunkRetryableWriteError(error: unknown): boolean {
+    const errAny = error as any;
+    const name = String(errAny?.name || '').toLowerCase();
+    const message = String(errAny?.message || '').toLowerCase();
+
+    if (name === 'notsupportederror') {
+        return true;
+    }
+
+    if (message.includes('insufficient') && message.includes('resource')) {
+        return true;
+    }
+
+    if (message.includes('timeout') || name.includes('timeout')) {
+        return true;
+    }
+
+    return false;
+}
+
+function getNoAckChunkDelayLevelsMs(): number[] {
+    const configuredBackoff = BLE_CONFIG.timing.noAckChunkWriteRetryBackoffMs;
+    const backoffSchedule =
+        Array.isArray(configuredBackoff) && configuredBackoff.length > 0
+            ? configuredBackoff
+            : FALLBACK_NO_ACK_CHUNK_RETRY_BACKOFF_MS;
+
+    const normalized = backoffSchedule
+        .map((value) => Math.max(0, Number(value ?? 0)))
+        .filter((value) => Number.isFinite(value));
+
+    if (normalized.length === 0) {
+        return [Math.max(0, Number(FALLBACK_NO_ACK_CHUNK_RETRY_BACKOFF_MS[0] ?? 0))];
+    }
+
+    return normalized;
+}
+
+async function waitWithAbort(signal: AbortSignal, delayMs: number): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const timerId = setTimeout(resolve, delayMs);
+        signal.addEventListener('abort', () => {
+            clearTimeout(timerId);
+            reject(new DOMException('Deployment cancelled', 'AbortError'));
+        }, { once: true });
+    });
+}
+
+async function writeChunkWithNoAckRetry(
+    characteristic: BluetoothRemoteGATTCharacteristic,
+    packetBytes: Uint8Array,
+    chunkNumber: number,
+    signal: AbortSignal,
+    addLog: (level: DeploymentLogEntry['level'], message: string) => void,
+    currentDelayTierIndex: number,
+    delayLevelsMs: number[]
+): Promise<{ delayTierIndex: number; activeDelayMs: number }> {
+    let delayTierIndex = Math.max(0, Math.min(currentDelayTierIndex, delayLevelsMs.length - 1));
+
+    while (true) {
+        try {
+            await writeTestPayload(characteristic, packetBytes);
+            return {
+                delayTierIndex,
+                activeDelayMs: Math.max(0, Number(delayLevelsMs[delayTierIndex] ?? 0)),
+            };
+        } catch (error) {
+            const retryable = isNoAckChunkRetryableWriteError(error);
+            const currentDelayMs = Math.max(0, Number(delayLevelsMs[delayTierIndex] ?? 0));
+
+            if (!retryable) {
+                throw error;
+            }
+
+            if (delayTierIndex >= delayLevelsMs.length - 1) {
+                const finalError = error instanceof Error ? error : new Error(String(error));
+                throw new Error(
+                    `Chunk ${chunkNumber} failed at max delay tier ${delayTierIndex + 1}/${delayLevelsMs.length} (${currentDelayMs}ms). ${finalError.message}`
+                );
+            }
+
+            const nextDelayTierIndex = delayTierIndex + 1;
+            const nextDelayMs = Math.max(0, Number(delayLevelsMs[nextDelayTierIndex] ?? 0));
+            addLog(
+                'warn',
+                `Chunk ${chunkNumber} write failed (${(error as any)?.name || 'Error'}). Escalating delay tier ${delayTierIndex + 1}->${nextDelayTierIndex + 1} (${currentDelayMs}ms->${nextDelayMs}ms) and retrying. Remaining chunks will use ${nextDelayMs}ms.`
+            );
+            delayTierIndex = nextDelayTierIndex;
+            await waitWithAbort(signal, nextDelayMs);
+        }
+    }
 }
 
 interface BLEDevice {
@@ -533,7 +628,8 @@ export default function BLEMdal({
         deployAbortRef.current = deployAbort;
         const { signal } = deployAbort;
         let ackChannel: Awaited<ReturnType<typeof setupAckNotifications>> | null = null;
-        let protocolAckEnabled = false;
+        let ackChannelAvailable = false;
+        let chunkProtocolAckEnabled = false;
 
         try {
             const gatt = connectedDevice.nativeDevice.gatt;
@@ -589,59 +685,52 @@ export default function BLEMdal({
                         onClose();
                     }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
                 });
-                protocolAckEnabled = true;
+                ackChannelAvailable = true;
                 addLog('info', 'Protocol ACK channel enabled for start/commit');
             } catch (ackSetupError: any) {
-                protocolAckEnabled = false;
+                ackChannelAvailable = false;
                 addLog('warn', `Protocol ACK unavailable (${ackSetupError?.message || 'unknown'}), using GATT sequential mode`);
             }
 
             addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
-            const chunkAckEnabled = FEATURE_FLAGS.enableProtocolAck && BLE_CONFIG.waitForAckOnChunks;
+            const chunkAckEnabled = FEATURE_FLAGS.enableProtocolAck;
             const bundle = await generateBLEDeploymentBundle(state, deployType, configuredChunkSize, {
-                ackEnabled: protocolAckEnabled && chunkAckEnabled,
+                ackEnabled: ackChannelAvailable && chunkAckEnabled,
             });
             const packets = createBLEZipDeploymentPackets(bundle);
+            chunkProtocolAckEnabled = Boolean(packets.start.protocolAckEnabled);
             _totalChunks = packets.chunks.length;
             setDeployTotalChunks(packets.chunks.length);
 
             addLog('info', `Bundle file=${bundle.fileName}, bytes=${bundle.bytes.byteLength}, chunks=${packets.chunks.length}`);
             addLog('info', `Device target type=${packets.start.selectedType}, lfs_dir=${packets.start.targetLfsDirectory}`);
+            addLog('info', `Protocol ACK mode for zip_chunk: ${chunkProtocolAckEnabled}`);
             addLog('info', `Write characteristic UUID: ${(characteristic as any).uuid ?? 'n/a'}`);
             addLog('info', `MTU used for chunking: ${mtuUsedForChunking} (reported=${reportedMtu}, configuredChunkSize=${configuredChunkSize})`);
 
             _phase = 'starting';
             setDeployPhase('starting');
-            if (protocolAckEnabled && ackChannel) {
-                try {
-                    const startResponse = await sendPacketWithAck(
-                        characteristic,
-                        packets.start,
-                        ackChannel.waitForAck,
-                        (ack) => {
-                            const cmd = String(ack?.cmd || '').toLowerCase();
-                            const packet = String(ack?.packet || ack?.type || '').toLowerCase();
-                            return cmd === 'zip_start_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_start' || packet === 'start' || packet === ''));
-                        },
-                        'zip_start',
-                        BLE_CONFIG.timing.ackTimeoutMs,
-                        addLog,
-                        0
-                    );
+            if (ackChannelAvailable && ackChannel) {
+                const startResponse = await sendPacketWithAck(
+                    characteristic,
+                    packets.start,
+                    ackChannel.waitForAck,
+                    (ack) => {
+                        const cmd = String(ack?.cmd || '').toLowerCase();
+                        const packet = String(ack?.packet || ack?.type || '').toLowerCase();
+                        return cmd === 'zip_start_ack' || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_start' || packet === 'start' || packet === ''));
+                    },
+                    'zip_start',
+                    BLE_CONFIG.timing.ackTimeoutMs,
+                    addLog,
+                    0
+                );
 
-                    const startAck = startResponse.ack;
-                    if (!isAckSuccessful(startAck)) {
-                        throw new Error(`Device rejected zip_start: ${getAckErrorMessage(startAck)}`);
-                    }
-                    addLog('debug', `Start packet sent (${startResponse.mode}), ack=ok`);
-                } catch (startAckError) {
-                    if (isAckTimeoutError(startAckError, 'zip_start')) {
-                        protocolAckEnabled = false;
-                        addLog('warn', 'zip_start ACK timeout, falling back to GATT sequential mode');
-                    } else {
-                        throw startAckError;
-                    }
+                const startAck = startResponse.ack;
+                if (!isAckSuccessful(startAck)) {
+                    throw new Error(`Device rejected zip_start: ${getAckErrorMessage(startAck)}`);
                 }
+                addLog('debug', `Start packet sent (${startResponse.mode}), ack=ok`);
             } else {
                 const startPacketBytes = new TextEncoder().encode(JSON.stringify(packets.start));
                 const mode = await writeTestPayload(characteristic, startPacketBytes);
@@ -650,6 +739,14 @@ export default function BLEMdal({
 
             _phase = 'uploading';
             setDeployPhase('uploading');
+            const noAckDelayLevelsMs = getNoAckChunkDelayLevelsMs();
+            let noAckDelayTierIndex = 0;
+            const getActiveNoAckDelayMs = () => Math.max(0, Number(noAckDelayLevelsMs[noAckDelayTierIndex] ?? 0));
+            if (chunkProtocolAckEnabled) {
+                addLog('info', 'Chunk ACK mode enabled: next chunk is sent immediately after previous chunk ACK.');
+            } else {
+                addLog('info', `No-ACK delay tier 1/${noAckDelayLevelsMs.length}: ${getActiveNoAckDelayMs()}ms`);
+            }
             for (let index = 0; index < packets.chunks.length; index += 1) {
                 if (signal.aborted) {
                     throw new DOMException('Deployment cancelled', 'AbortError');
@@ -660,9 +757,9 @@ export default function BLEMdal({
                 const chunkPacketPreview = new TextEncoder().encode(JSON.stringify(chunkPacket));
                 _payloadBytes = chunkPacketPreview.byteLength;
                 let chunkWasAcked = false;
-                // Only wait for chunk ACK if both protocol is enabled AND the config flag allows it
-                if (protocolAckEnabled && ackChannel && chunkAckEnabled) {
-                    try {
+                let nextGapDelayMs = chunkProtocolAckEnabled ? 0 : getActiveNoAckDelayMs();
+                try {
+                    if (chunkProtocolAckEnabled && ackChannelAvailable && ackChannel) {
                         const chunkResponse = await sendPacketWithAck(
                             characteristic,
                             chunkPacket,
@@ -694,83 +791,91 @@ export default function BLEMdal({
                         }
 
                         chunkWasAcked = true;
-                    } catch (chunkAckError) {
-                        if (isAckTimeoutError(chunkAckError, `zip_chunk[${index}]`)) {
-                            protocolAckEnabled = false;
-                            addLog('warn', `Chunk ${index + 1} ACK timeout, switching to GATT sequential mode`);
-                        } else {
-                            throw chunkAckError;
+                    } else {
+                        const chunkPacketBytes = new TextEncoder().encode(JSON.stringify(chunkPacket));
+                        const retryResult = await writeChunkWithNoAckRetry(
+                            characteristic,
+                            chunkPacketBytes,
+                            index + 1,
+                            signal,
+                            addLog,
+                            noAckDelayTierIndex,
+                            noAckDelayLevelsMs
+                        );
+
+                        if (retryResult.delayTierIndex !== noAckDelayTierIndex) {
+                            noAckDelayTierIndex = retryResult.delayTierIndex;
+                            addLog(
+                                'info',
+                                `No-ACK delay tier switched to ${noAckDelayTierIndex + 1}/${noAckDelayLevelsMs.length}: ${retryResult.activeDelayMs}ms`
+                            );
                         }
+
+                        nextGapDelayMs = getActiveNoAckDelayMs();
                     }
-                } else {
-                    const chunkPacketBytes = new TextEncoder().encode(JSON.stringify(chunkPacket));
-                    await writeTestPayload(characteristic, chunkPacketBytes);
+                } catch (chunkError) {
+                    addLog(
+                        'error',
+                        `Chunk ${index + 1}/${packets.chunks.length} failed permanently. Stopping deployment; remaining chunks will not be sent.`
+                    );
+                    const reason = chunkError instanceof Error ? chunkError.message : String(chunkError);
+                    throw new Error(
+                        `Chunk ${index + 1} failed after retry limit. Deployment stopped before sending remaining chunks. ${reason}`
+                    );
                 }
 
                 setDeployCurrentChunk(index + 1);
 
                 if ((index + 1) % 10 === 0 || index === packets.chunks.length - 1) {
-                    addLog('info', `Chunk ${index + 1}/${packets.chunks.length} sent${chunkWasAcked ? ' and ACKed' : ''} (bytes=${_payloadBytes})`);
+                    addLog(
+                        'info',
+                        `Chunk ${index + 1}/${packets.chunks.length} sent${chunkWasAcked ? ' and ACKed' : ''} (bytes=${_payloadBytes}, delay=${nextGapDelayMs}ms)`
+                    );
                 }
 
                 if (index < packets.chunks.length - 1) {
-                    // Abortable inter-chunk delay — resolves normally or rejects if cancelled.
-                    await new Promise<void>((resolve, reject) => {
-                        const timerId = setTimeout(resolve, BLE_CONFIG.timing.interChunkDelayMs);
-                        signal.addEventListener('abort', () => {
-                            clearTimeout(timerId);
-                            reject(new DOMException('Deployment cancelled', 'AbortError'));
-                        }, { once: true });
-                    });
+                    if (nextGapDelayMs > 0) {
+                        await waitWithAbort(signal, nextGapDelayMs);
+                    }
                 }
             }
 
             _phase = 'flashing';
             setDeployPhase('flashing');
-            if (protocolAckEnabled && ackChannel) {
-                try {
-                    const commitResponse = await sendPacketWithAck(
-                        characteristic,
-                        packets.commit,
-                        ackChannel.waitForAck,
-                        (ack) => {
-                            const cmd = String(ack?.cmd || '').toLowerCase();
-                            const packet = String(ack?.packet || ack?.type || '').toLowerCase();
-                            return cmd === 'zip_commit_ack'
-                                || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''))
-                                || (cmd === 'zip_nack' && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
-                        },
-                        'zip_commit',
-                        BLE_CONFIG.timing.commitAckTimeoutMs,
-                        addLog,
-                        0
-                    );
+            if (ackChannelAvailable && ackChannel) {
+                const commitResponse = await sendPacketWithAck(
+                    characteristic,
+                    packets.commit,
+                    ackChannel.waitForAck,
+                    (ack) => {
+                        const cmd = String(ack?.cmd || '').toLowerCase();
+                        const packet = String(ack?.packet || ack?.type || '').toLowerCase();
+                        return cmd === 'zip_commit_ack'
+                            || ((cmd === 'zip_ack' || cmd === 'ack') && (packet === 'zip_commit' || packet === 'commit' || packet === ''))
+                            || (cmd === 'zip_nack' && (packet === 'zip_commit' || packet === 'commit' || packet === ''));
+                    },
+                    'zip_commit',
+                    BLE_CONFIG.timing.commitAckTimeoutMs,
+                    addLog,
+                    0
+                );
 
-                    const commitAck = commitResponse.ack;
+                const commitAck = commitResponse.ack;
 
-                    if (!isAckSuccessful(commitAck)) {
-                        throw new Error(`Device rejected zip_commit: ${getAckErrorMessage(commitAck)}`);
-                    }
-
-                    addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received.`);
-                    _phase = 'complete';
-                    setDeployPhase('complete');
-                    setIsDeploying(false);
-                    setDeploySuccess(true);
-                    addLog('info', 'Deployment completed on zip_commit_ack; closing dialog now.');
-                    setTimeout(() => {
-                        onClose();
-                    }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
-                    return;
-                } catch (commitAckError) {
-                    if (isAckTimeoutError(commitAckError, 'zip_commit')) {
-                        const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
-                        const mode = await writeTestPayload(characteristic, commitPacketBytes);
-                        addLog('warn', `zip_commit ACK timeout, continuing in GATT sequential mode (${mode})`);
-                    } else {
-                        throw commitAckError;
-                    }
+                if (!isAckSuccessful(commitAck)) {
+                    throw new Error(`Device rejected zip_commit: ${getAckErrorMessage(commitAck)}`);
                 }
+
+                addLog('info', `Commit packet sent (${commitResponse.mode}), commit ACK received.`);
+                _phase = 'complete';
+                setDeployPhase('complete');
+                setIsDeploying(false);
+                setDeploySuccess(true);
+                addLog('info', 'Deployment completed on zip_commit_ack; closing dialog now.');
+                setTimeout(() => {
+                    onClose();
+                }, BLE_CONFIG.timing.deployDialogCloseDelayMs);
+                return;
             } else {
                 const commitPacketBytes = new TextEncoder().encode(JSON.stringify(packets.commit));
                 const mode = await writeTestPayload(characteristic, commitPacketBytes);
@@ -780,7 +885,7 @@ export default function BLEMdal({
             setDeployPhase('complete');
 
             // Wait for zip_commit_status ACK or timeout; close dialog either way
-            if (protocolAckEnabled && ackChannel) {
+            if (ackChannelAvailable && ackChannel) {
                 try {
                     const commitStatus = await ackChannel.waitForAck(
                         (ack) => String(ack?.cmd || '').toLowerCase() === 'zip_commit_status',
@@ -797,9 +902,9 @@ export default function BLEMdal({
                     setDeploySuccess(true);
                 } catch (statusError) {
                     if (isAckTimeoutError(statusError, 'zip_commit_status')) {
-                        addLog('warn', `zip_commit_status timeout or error: ${statusError instanceof Error ? statusError.message : String(statusError)}`);
-                        setIsDeploying(false);
-                        setDeploySuccess(true);
+                        throw new Error(
+                            `zip_commit_status timeout or error: ${statusError instanceof Error ? statusError.message : String(statusError)}`
+                        );
                     } else {
                         throw statusError;
                     }
@@ -832,7 +937,7 @@ export default function BLEMdal({
                 addLog('error', `char_uuid: ${(writeCharacteristic as any)?.uuid ?? 'n/a'}`);
                 addLog('error', `device_name: ${connectedDevice?.name ?? 'n/a'}`);
                 addLog('error', `gatt_connected: ${connectedDevice?.nativeDevice?.gatt?.connected ?? 'unknown'}`);
-                addLog('error', `protocol_ack_enabled: ${protocolAckEnabled}`);
+                addLog('error', `protocol_ack_enabled_for_chunks: ${chunkProtocolAckEnabled}`);
                 addLog('error', `deploy_type: ${deployType}`);
                 if (origErr) {
                     addLog('error', `original_err_name: ${origErr.name ?? 'n/a'}`);
@@ -840,7 +945,11 @@ export default function BLEMdal({
                     addLog('error', `original_err_message: ${origErr.message ?? 'n/a'}`);
                 }
                 addLog('error', `--- FIRMWARE DIAGNOSTIC END ---`);
-                setError(`Deploy failed: ${errMsg}`);
+                if (errMsg.includes('failed after') && errMsg.includes('no-ACK mode')) {
+                    setError(`Deploy failed: ${errMsg}. Please check device capacity/connection and retry.`);
+                } else {
+                    setError(`Deploy failed: ${errMsg}`);
+                }
             }
             setIsDeploying(false);
             setDeploySuccess(false);
