@@ -127,7 +127,7 @@ const modalStyles = {
 // Do not re-import Translations type, already defined above
 import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
-import { getPersistedLanguageCodes, saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
+import { saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
 
 
 const RightSidebar = forwardRef(function RightSidebar(_, ref) {
@@ -162,9 +162,13 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   // Load all languages from localStorage (not just initialLocales)
   const getPersistedLocales = () => {
     const langs: { [key: string]: Translations } = {};
-    getPersistedLanguageCodes().forEach((lang) => {
-      langs[lang] = loadLanguageFromProject(lang);
-    });
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
+        const lang = key.replace('project_lang_', '').replace('.json', '');
+        langs[lang] = loadLanguageFromProject(lang);
+      }
+    }
     return langs;
   };
 

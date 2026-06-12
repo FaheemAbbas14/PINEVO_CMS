@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { LanguageManagementModal } from './LanguageManagementModal';
 import { locales as initialLocales } from '../../locales';
-import { getPersistedLanguageCodes, loadLanguageFromProject } from '../../locales/persistLanguage';
+import { loadLanguageFromProject } from '../../locales/persistLanguage';
 import type { Locale, Translations } from '../../locales/types.d';
 import { useLanguage } from '../../App';
 
@@ -45,14 +45,18 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
     // Language management modal state
     const [showLangModal, setShowLangModal] = useState(false);
     const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
-    // Reload languages from project-scoped storage when modal visibility or project changes.
+    // Always reload languages from persistent storage on every render
     useEffect(() => {
       const loaded: { [key: string]: Translations } = {};
-      getPersistedLanguageCodes().forEach((lang) => {
-        loaded[lang] = loadLanguageFromProject(lang);
-      });
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
+          const lang = key.replace('project_lang_', '').replace('.json', '');
+          loaded[lang] = loadLanguageFromProject(lang);
+        }
+      }
       setLanguages(loaded);
-    }, [showLangModal, state.project?.id]);
+    }, [showLangModal]);
     const { locale, setLocale } = useLanguage();
 
   const handleBLEConnect = (device: BLEDevice) => {
