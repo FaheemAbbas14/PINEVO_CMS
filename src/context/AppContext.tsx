@@ -4,7 +4,11 @@ import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareBut
 import type { DeployUIType } from '../services/exportService';
 import { FEATURE_FLAGS } from '../config/project';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
-import { loadLanguageFromProject, saveLanguageToProject } from '../locales/persistLanguage';
+import {
+  getAllPersistedLanguages,
+  loadLanguageFromProject,
+  saveLanguageToProject,
+} from '../locales/persistLanguage';
 
 // Local storage keys
 const STORAGE_KEY = 'pinevo_cms_state';
@@ -413,19 +417,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
 
   // Helper to collect all language assets from localStorage
   function collectAllLanguages() {
-    const langs: Record<string, any> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-        const lang = key.replace('project_lang_', '').replace('.json', '');
-        try {
-          langs[lang] = JSON.parse(localStorage.getItem(key) || '{}');
-        } catch {
-          langs[lang] = {};
-        }
-      }
-    }
-    return langs;
+    return getAllPersistedLanguages();
   }
 
   // Helper to restore all language assets to localStorage

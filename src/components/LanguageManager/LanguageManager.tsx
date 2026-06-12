@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCMS } from '../../context/AppContext';
 
 // ISO 639-1 language codes and names (short list, can be expanded)
 const ISO_LANGUAGES = [
@@ -21,7 +22,12 @@ const ISO_LANGUAGES = [
   { code: 'ko', name: 'Korean' },
 ];
 
-import { saveLanguageToProject, loadLanguageFromProject, removeLanguageFromProject } from '../../locales/persistLanguage';
+import {
+  getPersistedLanguageCodes,
+  loadLanguageFromProject,
+  removeLanguageFromProject,
+  saveLanguageToProject,
+} from '../../locales/persistLanguage';
 import type { Locale, Translations } from '../../locales/types';
 
 interface LanguageManagerProps {
@@ -31,6 +37,7 @@ interface LanguageManagerProps {
 
 
 export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale }) => {
+  const { state } = useCMS();
     // Handler to start editing a translation key
     const handleEditTranslation = (key: string) => {
       setEditingKey(key);
@@ -51,22 +58,18 @@ export const LanguageManager: React.FC<LanguageManagerProps> = ({ currentLocale 
   const [editValueValue, setEditValueValue] = useState('');
 
 
-  // Load all persisted languages from localStorage on mount
+  // Load all persisted languages for the active project.
   useEffect(() => {
     const loaded: { [key: string]: Translations } = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-        const lang = key.replace('project_lang_', '').replace('.json', '');
-        loaded[lang] = loadLanguageFromProject(lang);
-      }
-    }
+    getPersistedLanguageCodes().forEach((lang) => {
+      loaded[lang] = loadLanguageFromProject(lang);
+    });
     setLanguages(loaded);
     // Set selectedLang to first available or default
     if (Object.keys(loaded).length > 0) {
       setSelectedLang(Object.keys(loaded)[0]);
     }
-  }, []);
+  }, [state.project?.id]);
 
   // Keep newLangValues in sync with languages
   useEffect(() => {
