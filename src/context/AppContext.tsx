@@ -174,15 +174,58 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
       return { ...state, activeScreenId: action.payload, selectedComponentId: null };
 
     case 'ADD_COMPONENT':
+      {
+      let addedComponentId = action.payload.component.id;
       return {
         ...state,
-        screens: state.screens.map((s) =>
-          s.id === action.payload.screenId
-            ? { ...s, components: [...s.components, action.payload.component] }
-            : s
-        ),
-        selectedComponentId: action.payload.component.id,
+        screens: state.screens.map((s) => {
+          if (s.id !== action.payload.screenId) {
+            return s;
+          }
+
+          const existingIds = new Set(s.components.map((c) => c.id));
+          const existingDisplayIds = new Set(
+            s.components
+              .map((c) => c.displayId)
+              .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+          );
+
+          const incoming = { ...action.payload.component };
+          if (!incoming.id || existingIds.has(incoming.id)) {
+            incoming.id = uuidv4();
+          }
+
+          const baseType = incoming.type === 'text_input' ? 'textbox' : (incoming.type === 'text' ? 'label' : incoming.type);
+          const escapedBase = baseType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const suffixRegex = new RegExp(`^${escapedBase}(\\d+)$`);
+          const numericSuffixes = Array.from(existingDisplayIds)
+            .map((id) => id.match(suffixRegex))
+            .filter((m): m is RegExpMatchArray => Boolean(m))
+            .map((m) => Number.parseInt(m[1], 10))
+            .filter((n) => Number.isFinite(n));
+
+          let nextIndex = numericSuffixes.length > 0
+            ? Math.max(...numericSuffixes) + 1
+            : s.components.filter((c) => c.type === incoming.type).length + 1;
+
+          let nextDisplayId = `${baseType}${nextIndex}`;
+          if (typeof incoming.displayId === 'string' && incoming.displayId.trim() && !existingDisplayIds.has(incoming.displayId.trim())) {
+            nextDisplayId = incoming.displayId.trim();
+          } else {
+            while (existingDisplayIds.has(nextDisplayId)) {
+              nextIndex += 1;
+              nextDisplayId = `${baseType}${nextIndex}`;
+            }
+          }
+
+          incoming.displayId = nextDisplayId;
+          addedComponentId = incoming.id;
+
+          return { ...s, components: [...s.components, incoming] };
+        }),
+        selectedComponentId: addedComponentId,
       };
+      }
 
     case 'UPDATE_COMPONENT': {
       const selectedId = state.selectedComponentId;
@@ -372,10 +415,26 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       const screen = state.screens.find(s => s.id === state.activeScreenId);
       if (screen) {
         const baseType = component.type === 'text_input' ? 'textbox' : (component.type === 'text' ? 'label' : component.type);
-        let index = 1;
+        const usedDisplayIds = new Set(
+          screen.components
+            .map((c) => c.displayId)
+            .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+        );
+
+        const escapedBase = baseType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const suffixRegex = new RegExp(`^${escapedBase}(\\d+)$`);
+        const numericSuffixes = Array.from(usedDisplayIds)
+          .map((id) => id.match(suffixRegex))
+          .filter((m): m is RegExpMatchArray => Boolean(m))
+          .map((m) => Number.parseInt(m[1], 10))
+          .filter((n) => Number.isFinite(n));
+
+        let index = numericSuffixes.length > 0
+          ? Math.max(...numericSuffixes) + 1
+          : screen.components.filter((c) => c.type === component.type).length + 1;
+
         let displayId = `${baseType}${index}`;
-        // Ensure displayId is unique in this canvas
-        const isDisplayIdUsed = (id: string) => screen.components.some(c => c.displayId === id);
+        const isDisplayIdUsed = (id: string) => usedDisplayIds.has(id);
         while (isDisplayIdUsed(displayId)) {
           index++;
           displayId = `${baseType}${index}`;
