@@ -33,7 +33,7 @@ function getFirstEnabledDeployType(): DeployUIType {
 
 export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarProps>) {
 
-  const { state, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
+  const { state, setProject, addScreen, duplicateActiveScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showBLEModal, setShowBLEModal] = useState(false);
   const [bleDevice, setBleDevice] = useState<BLEDevice | null>(null);
@@ -175,6 +175,12 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+              <button className="btn-icon btn-duplicate" onClick={duplicateActiveScreen} title="Duplicate Active Screen">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <rect x="4" y="4" width="11" height="11" rx="2" />
                 </svg>
               </button>
               <button

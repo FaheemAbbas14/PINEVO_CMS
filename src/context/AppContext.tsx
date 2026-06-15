@@ -354,6 +354,7 @@ interface CMSContextValue {
   setProject: (project: { name: string; type: 'pin_evo' | 'flex' }) => void;
   updateProjectSettings: (settings: Partial<Project>) => void;
   addScreen: () => void;
+  duplicateActiveScreen: () => void;
   deleteScreen: (id: string) => void;
   renameScreen: (id: string, name: string) => void;
   setActiveScreen: (id: string) => void;
@@ -528,6 +529,25 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     };
     dispatch({ type: 'ADD_SCREEN', payload: newScreen });
   }, [state.screens.length]);
+
+  const duplicateActiveScreen = useCallback(() => {
+    const sourceScreen = state.screens.find((s) => s.id === state.activeScreenId);
+    if (!sourceScreen) {
+      return;
+    }
+
+    const clonedScreen: Screen = {
+      ...sourceScreen,
+      id: uuidv4(),
+      name: `Screen ${state.screens.length + 1}`,
+      components: sourceScreen.components.map((component) => ({
+        ...component,
+        id: uuidv4(),
+      })),
+    };
+
+    dispatch({ type: 'ADD_SCREEN', payload: clonedScreen });
+  }, [state.activeScreenId, state.screens]);
 
   const deleteScreen = useCallback((id: string) => {
     dispatch({ type: 'DELETE_SCREEN', payload: id });
@@ -846,6 +866,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     setProject,
     updateProjectSettings,
     addScreen,
+    duplicateActiveScreen,
     deleteScreen,
     renameScreen,
     setActiveScreen,
@@ -866,7 +887,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     resetSandboxConfig,
     updateScreenHardwareButton,
     clearSession,
-  }), [state, activeScreen, selectedComponent, setProject, updateProjectSettings, addScreen, deleteScreen, renameScreen, setActiveScreen, updateActiveScreenSettings, addComponent, updateComponent, deleteComponent, selectComponent, moveComponent, downloadExportZip, saveScreens, saveAsHtml, saveProject, loadProject, setSandboxMode, setPreviewMode, updateSandboxConfig, resetSandboxConfig, updateScreenHardwareButton, clearSession]);
+  }), [state, activeScreen, selectedComponent, setProject, updateProjectSettings, addScreen, duplicateActiveScreen, deleteScreen, renameScreen, setActiveScreen, updateActiveScreenSettings, addComponent, updateComponent, deleteComponent, selectComponent, moveComponent, downloadExportZip, saveScreens, saveAsHtml, saveProject, loadProject, setSandboxMode, setPreviewMode, updateSandboxConfig, resetSandboxConfig, updateScreenHardwareButton, clearSession]);
   return (
     <CMSContext.Provider value={contextValue}>
       {children}
