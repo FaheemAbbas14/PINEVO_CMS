@@ -501,6 +501,7 @@ async function collectEmbeddedAssets(
   };
 
   for (const screen of screens) {
+    await addAsset(screen.screenAudioUrl, 'audio');
     for (const component of screen.components) {
       await addAsset(component.imageUrl, 'image');
       await addAsset(component.audioUrl, 'audio');
@@ -624,6 +625,20 @@ function isHomeScreen(screen: Screen, targetByScreenId: Map<string, string>) {
   return target === 'home';
 }
 
+function resolveScreenBackgroundColor(state: CMSState, screen: Screen): string {
+  return screen.backgroundColor || state.project?.defaultCanvasBgColor || '#ffffff';
+}
+
+function resolveScreenAction(screen: Screen, embeddedAssetRefs: Map<string, string>) {
+  const fn = screen.screenFunction || 'none';
+  return {
+    function: fn,
+    api_call: fn === 'api_call' ? (screen.screenApiCall || '') : '',
+    command: fn === 'run_command' ? (screen.screenCommand || '') : '',
+    audio_src: fn === 'play_audio' ? resolveAssetReference(screen.screenAudioUrl, embeddedAssetRefs) : '',
+  };
+}
+
 
 function createRuntimeUiTypeIndicatorComponent(format: DeployUIType, canvasSize: { width: number; height: number }, id?: string) {
   return {
@@ -715,15 +730,19 @@ function buildFirmwareJsonComponent(
       width: component.width,
       height: component.height,
       bg_color: component.bgColor || '#ffffff',
+      border_color: component.borderColor || '#e5e7eb',
       text_color: component.color || '#1a1a2e',
       font: fontKey,
       text: component.text || '',
       placeholder: component.placeholder || '',
       border_radius: component.borderRadius || 8,
+      inputBorderStyle: component.inputBorderStyle || 'rounded',
       labelKey: component.labelKey,
       labelMode: component.labelMode,
       placeholderKey: component.placeholderKey,
       placeholderMode: component.placeholderMode,
+      inputType: component.inputType || 'text',
+      maxLength: Number(component.maxLength || 0),
     };
   }
 
@@ -856,15 +875,19 @@ function renderFirmwareComponent(
       ['width', component.width],
       ['height', component.height],
       ['bg_color', component.bgColor || '#ffffff'],
+      ['border_color', component.borderColor || '#e5e7eb'],
       ['text_color', component.color || '#1a1a2e'],
       ['font', fontKey],
       ['text', hasLabelKey ? '' : (component.text || '')],
       ['placeholder', component.placeholder || ''],
       ['border_radius', component.borderRadius || 8],
+      ['data-input-border-style', component.inputBorderStyle || 'rounded'],
       ['data-label-key', component.labelKey],
       // 'data-label-mode' removed
       ['data-placeholder-key', component.placeholderKey],
       ['data-placeholder-mode', component.placeholderMode],
+      ['data-input-type', component.inputType || 'text'],
+      ['data-max-length', Number(component.maxLength || 0)],
     ]);
   }
 
@@ -921,6 +944,8 @@ function generateScreenHtml(
   const canvasSize = getCanvasSize(state.project?.type);
   const normalizedScreen = normalizeScreenHardwareButtons(screen);
   const screenName = sanitizeIdentifier(normalizedScreen.name);
+  const bgColor = resolveScreenBackgroundColor(state, normalizedScreen);
+  const screenAction = resolveScreenAction(normalizedScreen, embeddedAssetRefs);
   const components = normalizedScreen.components
     .map((component, index) => renderFirmwareComponent(component, index, targetByScreenId, embeddedAssetRefs))
     .filter(Boolean);
@@ -946,7 +971,7 @@ function generateScreenHtml(
   const sections = [components.join('\n'), hardwareMappings].filter(Boolean).join('\n');
 
   // Remove font_name/font_src from screen tag in HTML export
-  return `<screen name="${escapeAttr(screenName)}" bg_color="#ffffff" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}">\n${sections}\n</screen>\n`;
+  return `<screen name="${escapeAttr(screenName)}" bg_color="${escapeAttr(bgColor)}" width="${escapeAttr(canvasSize.width)}" height="${escapeAttr(canvasSize.height)}" bg_image_src="" id="${escapeAttr(normalizedScreen.id)}" function="${escapeAttr(screenAction.function)}" api_call="${escapeAttr(screenAction.api_call)}" command="${escapeAttr(screenAction.command)}" audio_src="${escapeAttr(screenAction.audio_src)}">\n${sections}\n</screen>\n`;
 }
 
 function generateIndexHtml(state: CMSState, screenFileNames: Map<string, string>) {
@@ -1054,12 +1079,14 @@ function createDeployFileName(state: CMSState) {
 }
 
 function generateScreenJsonExport(
+  state: CMSState,
   canvasSize: { width: number; height: number },
   screen: Screen,
   targetByScreenId: Map<string, string>,
   embeddedAssetRefs: Map<string, string>
 ) {
   const normalizedScreen = normalizeScreenHardwareButtons(screen);
+  const screenAction = resolveScreenAction(normalizedScreen, embeddedAssetRefs);
   const components = normalizedScreen.components.map((component, index) =>
     buildFirmwareJsonComponent(component, index, targetByScreenId, embeddedAssetRefs)
   );
@@ -1080,13 +1107,18 @@ function generateScreenJsonExport(
       });
 
   const screenTarget = targetByScreenId.get(normalizedScreen.id) || sanitizeIdentifier(normalizedScreen.name);
+  const bgColor = resolveScreenBackgroundColor(state, normalizedScreen);
 
   // Remove font_name/font_src from screen tag in JSON export
   return JSON.stringify(
     {
       screen: {
         name: screenTarget,
-        bg_color: '#ffffff',
+        bg_color: bgColor,
+        function: screenAction.function,
+        api_call: screenAction.api_call,
+        command: screenAction.command,
+        audio_src: screenAction.audio_src,
         width: canvasSize.width,
         height: canvasSize.height,
         bg_image_src: '',
@@ -1132,7 +1164,7 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
       return;
     }
 
-    jsonFolder.file(fileName, generateScreenJsonExport(canvasSize, screen, targetByScreenId, assetRegistry.references));
+    jsonFolder.file(fileName, generateScreenJsonExport(state, canvasSize, screen, targetByScreenId, assetRegistry.references));
   });
 
   assetRegistry.assets.forEach((asset) => {

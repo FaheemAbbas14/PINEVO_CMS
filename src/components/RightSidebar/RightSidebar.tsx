@@ -34,6 +34,11 @@ const FONT_OPTIONS = getFontOptions();
 const FIELD_CONFIG = {
   text: [
     { key: 'labelKey', label: 'Text', type: 'langKey' },
+    { key: 'textAlign', label: 'Alignment', type: 'select', options: [
+      { value: 'left', label: 'Left' },
+      { value: 'center', label: 'Center' },
+      { value: 'right', label: 'Right' },
+    ] },
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
@@ -42,14 +47,34 @@ const FIELD_CONFIG = {
   text_input: [
     { key: 'labelKey', label: 'Label', type: 'langKey' },
     { key: 'placeholderKey', label: 'Placeholder', type: 'langKey' },
+    { key: 'inputBorderStyle', label: 'Border Style', type: 'select', options: [
+      { value: 'rounded', label: 'Rounded 4 Sides' },
+      { value: 'underline', label: 'Underline Only' },
+    ] },
+    { key: 'inputType', label: 'Input Type', type: 'select', options: [
+      { value: 'text', label: 'Text' },
+      { value: 'number', label: 'Number' },
+    ] },
+    { key: 'maxLength', label: 'Max Length', type: 'number', default: 0 },
+    { key: 'textAlign', label: 'Alignment', type: 'select', options: [
+      { value: 'left', label: 'Left' },
+      { value: 'center', label: 'Center' },
+      { value: 'right', label: 'Right' },
+    ] },
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#e5e7eb' },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#ffffff' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
   ],
   button: [
     { key: 'labelKey', label: 'Text', type: 'langKey' },
+    { key: 'textAlign', label: 'Alignment', type: 'select', options: [
+      { value: 'left', label: 'Left' },
+      { value: 'center', label: 'Center' },
+      { value: 'right', label: 'Right' },
+    ] },
     { key: 'goToScreen', label: 'Go to Screen', type: 'screenSelect' },
     { key: 'function', label: 'Function', type: 'select', options: [
       { value: 'none', label: 'None' },
@@ -78,6 +103,14 @@ const FIELD_CONFIG = {
   ],
   image: [
     { key: 'imageUrl', label: 'Image URL', type: 'text' },
+  ],
+  view: [
+    { key: 'visible', label: 'Visibility', type: 'select', options: [
+      { value: 'true', label: 'Show' },
+      { value: 'false', label: 'Hide' },
+    ] },
+    { key: 'bgColor', label: 'Background', type: 'color', default: '#e5e7eb' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
   ],
   audio: [
     { key: 'audioUrl', label: 'Audio URL', type: 'text' },
@@ -133,7 +166,7 @@ import { getPersistedLanguageCodes, saveLanguageToProject, loadLanguageFromProje
 const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   // Only declare these once
   const { locale } = useLanguage();
-  const { state, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig } = useCMS();
+  const { state, activeScreen, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig, updateProjectSettings, updateActiveScreenSettings } = useCMS();
   const [localValues, setLocalValues] = useState<CanvasComponent>(selectedComponent || {
     id: '', type: '', x: 0, y: 0, width: 0, height: 0
   });
@@ -199,6 +232,36 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   useEffect(() => {
     if (selectedComponent) setLocalValues(selectedComponent);
   }, [locale, selectedComponent]);
+
+  const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleScreenAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('audio/')) {
+      alert('Please select a valid audio file.');
+      return;
+    }
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (!dataUrl) {
+        alert('Failed to read selected audio file.');
+        return;
+      }
+      updateActiveScreenSettings({ screenAudioUrl: dataUrl });
+    } catch {
+      alert('Could not load audio file. Please try another file.');
+    } finally {
+      e.target.value = '';
+    }
+  };
 
   // Show Sandbox Configuration when sandbox mode is enabled and no component is selected
   // Hide RightSidebar in preview mode
@@ -328,6 +391,107 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
           </svg>
           <p>Select a component to edit properties</p>
         </div>
+        <div className="properties-scroll" style={{ marginTop: 16 }}>
+          <section className="property-group">
+            <h3 className="group-title">Canvas Background</h3>
+            <div className="property-grid">
+              <div className="property-field">
+                <label htmlFor="default-canvas-bg">Default (Project)</label>
+                <input
+                  id="default-canvas-bg"
+                  type="color"
+                  value={state.project?.defaultCanvasBgColor || '#ffffff'}
+                  onChange={(e) => updateProjectSettings({ defaultCanvasBgColor: e.target.value })}
+                />
+              </div>
+              <div className="property-field">
+                <label htmlFor="screen-canvas-bg">Current Screen Override</label>
+                <input
+                  id="screen-canvas-bg"
+                  type="color"
+                  value={activeScreen?.backgroundColor || state.project?.defaultCanvasBgColor || '#ffffff'}
+                  onChange={(e) => updateActiveScreenSettings({ backgroundColor: e.target.value })}
+                />
+              </div>
+              <div className="property-field">
+                <label htmlFor="screen-canvas-reset">Use Default</label>
+                <button
+                  id="screen-canvas-reset"
+                  type="button"
+                  onClick={() => updateActiveScreenSettings({ backgroundColor: undefined })}
+                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#f8fafc', cursor: 'pointer' }}
+                >
+                  Reset Override
+                </button>
+              </div>
+            </div>
+          </section>
+          <section className="property-group">
+            <h3 className="group-title">Screen Action</h3>
+            <div className="property-grid">
+              <div className="property-field">
+                <label htmlFor="screen-action-function">Function</label>
+                <select
+                  id="screen-action-function"
+                  value={activeScreen?.screenFunction || 'none'}
+                  onChange={(e) => updateActiveScreenSettings({
+                    screenFunction: e.target.value as 'none' | 'api_call' | 'play_audio' | 'run_command',
+                  })}
+                >
+                  <option value="none">None</option>
+                  <option value="api_call">API Call</option>
+                  <option value="play_audio">Play Audio</option>
+                  <option value="run_command">Run Command</option>
+                </select>
+              </div>
+
+              {(activeScreen?.screenFunction || 'none') === 'api_call' && (
+                <div className="property-field">
+                  <label htmlFor="screen-action-api">API URL</label>
+                  <input
+                    id="screen-action-api"
+                    type="text"
+                    value={activeScreen?.screenApiCall || ''}
+                    onChange={(e) => updateActiveScreenSettings({ screenApiCall: e.target.value })}
+                    placeholder="https://example.com/endpoint"
+                  />
+                </div>
+              )}
+
+              {(activeScreen?.screenFunction || 'none') === 'play_audio' && (
+                <div className="property-field">
+                  <label htmlFor="screen-action-audio-file">Audio File</label>
+                  <input
+                    id="screen-action-audio-file"
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleScreenAudioUpload}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => updateActiveScreenSettings({ screenAudioUrl: undefined })}
+                    style={{ marginTop: 8, padding: '6px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#f8fafc', cursor: 'pointer' }}
+                  >
+                    Clear Audio
+                  </button>
+                </div>
+              )}
+
+              {(activeScreen?.screenFunction || 'none') === 'run_command' && (
+                <div className="property-field">
+                  <label htmlFor="screen-action-command">Command</label>
+                  <input
+                    id="screen-action-command"
+                    type="text"
+                    value={activeScreen?.screenCommand || ''}
+                    onChange={(e) => updateActiveScreenSettings({ screenCommand: e.target.value })}
+                    placeholder="command_name --flag"
+                  />
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
         {/* <LanguageSection
           locale={locale}
           setLocale={setLocale}
@@ -361,6 +525,10 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
     // If a language key is being set, also set labelMode to 'lang'
     if (key === 'labelKey') {
       updated.labelMode = 'lang';
+    }
+    // If a placeholder language key is being set, mark placeholder mode as language-driven.
+    if (key === 'placeholderKey') {
+      updated.placeholderMode = 'lang';
     }
     setLocalValues(updated);
     // Only update if required fields exist and no displayId error
@@ -471,7 +639,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
         <section className="property-group">
           <h3 className="group-title">Layout</h3>
           <div className="property-grid">
-            {['x', 'y', 'width', 'height'].map((key) => (
+            {['x', 'y'].map((key) => (
               <div className="property-field" key={key}>
                 <label>{key.toUpperCase()}</label>
                 <input
@@ -481,6 +649,48 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 />
               </div>
             ))}
+            <div className="property-field">
+              <label>Width Mode</label>
+              <select
+                value={localValues.widthMode || 'fixed'}
+                onChange={e => handleChange('widthMode', e.target.value)}
+              >
+                <option value="fixed">Fixed</option>
+                <option value="match_parent">Match Parent</option>
+                <option value="wrap_content">Wrap Content</option>
+              </select>
+            </div>
+            {(localValues.widthMode || 'fixed') === 'fixed' && (
+              <div className="property-field">
+                <label>Width</label>
+                <input
+                  type="number"
+                  value={localValues.width}
+                  onChange={e => handleChange('width', Number.parseInt(e.target.value) || 1)}
+                />
+              </div>
+            )}
+            <div className="property-field">
+              <label>Height Mode</label>
+              <select
+                value={localValues.heightMode || 'fixed'}
+                onChange={e => handleChange('heightMode', e.target.value)}
+              >
+                <option value="fixed">Fixed</option>
+                <option value="match_parent">Match Parent</option>
+                <option value="wrap_content">Wrap Content</option>
+              </select>
+            </div>
+            {(localValues.heightMode || 'fixed') === 'fixed' && (
+              <div className="property-field">
+                <label>Height</label>
+                <input
+                  type="number"
+                  value={localValues.height}
+                  onChange={e => handleChange('height', Number.parseInt(e.target.value) || 1)}
+                />
+              </div>
+            )}
           </div>
         </section>
 
@@ -513,8 +723,16 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                     <div className="property-field" key={field.key}>
                       <label>{field.label}</label>
                       <select
-                        value={localValues[field.key] || (options[0]?.value ?? '')}
-                        onChange={e => handleChange(field.key, e.target.value)}
+                        value={field.key === 'visible'
+                          ? String(localValues[field.key] ?? true)
+                          : (localValues[field.key] || (options[0]?.value ?? ''))}
+                        onChange={e => {
+                          if (field.key === 'visible') {
+                            handleChange(field.key, e.target.value === 'true');
+                            return;
+                          }
+                          handleChange(field.key, e.target.value);
+                        }}
                       >
                         {options.map((opt: any) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>

@@ -24,16 +24,6 @@
   box-shadow: 0 4px 24px rgba(79, 70, 229, 0.18), 0 0 0 2px #4f46e5;
 }
 
-.canvas-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(to right, rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(0,0,0,0.04) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
 .canvas-empty {
   position: absolute;
   inset: 0;

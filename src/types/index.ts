@@ -7,6 +7,7 @@ export interface Project {
   id: string;
   name: string;
   type: ProjectType;
+  defaultCanvasBgColor?: string;
 }
 
 // Canvas dimensions (hardware screen constraint)
@@ -16,11 +17,17 @@ export const PIN_EVO_CANVAS_HEIGHT = CANVAS_CONFIG.dimensions.pinEvo.height;
 export const FLEX_CANVAS_WIDTH = CANVAS_CONFIG.dimensions.flex.width;
 export const FLEX_CANVAS_HEIGHT = CANVAS_CONFIG.dimensions.flex.height;
 
-export type ComponentType = 'text' | 'text_input' | 'button' | 'image' | 'api' | 'command' | 'audio';
+export type ComponentType = 'text' | 'text_input' | 'button' | 'image' | 'api' | 'command' | 'audio' | 'view';
 
 export interface CanvasComponent {
   /** Human-friendly, editable ID for UI and export */
   displayId?: string;
+  /** Visibility toggle for canvas rendering */
+  visible?: boolean;
+  /** Width sizing mode for canvas rendering */
+  widthMode?: 'fixed' | 'match_parent' | 'wrap_content';
+  /** Height sizing mode for canvas rendering */
+  heightMode?: 'fixed' | 'match_parent' | 'wrap_content';
       /** Mode for label: 'static' or 'lang' */
       labelMode?: 'static' | 'lang';
       /** Mode for placeholder: 'static' or 'lang' */
@@ -37,11 +44,16 @@ export interface CanvasComponent {
   height: number;
   text?: string;
   placeholder?: string;  // placeholder text for text_input
+  inputType?: 'text' | 'number';
+  maxLength?: number;
+  inputBorderStyle?: 'rounded' | 'underline';
   fontSize?: number;
   color?: string;       // text color
   bgColor?: string;     // background color (button/image bg)
   imageUrl?: string;    // image src
   fontWeight?: string;
+  /** Horizontal alignment for text-bearing components */
+  textAlign?: 'left' | 'center' | 'right';
   /** Font family for text rendering (persisted and exported) */
   fontFamily?: string;
   borderRadius?: number;
@@ -82,6 +94,11 @@ export interface Screen {
   id: string;
   name: string;
   components: CanvasComponent[];
+  backgroundColor?: string;
+  screenFunction?: 'none' | 'api_call' | 'play_audio' | 'run_command';
+  screenApiCall?: string;
+  screenAudioUrl?: string;
+  screenCommand?: string;
   hardwareButtons?: ScreenHardwareButtons;
 }
 
@@ -104,7 +121,9 @@ export interface CMSState {
 
 export type CMSAction =
   | { type: 'SET_PROJECT'; payload: Project }
+  | { type: 'UPDATE_PROJECT'; payload: Partial<Project> }
   | { type: 'ADD_SCREEN'; payload: Screen }
+  | { type: 'UPDATE_SCREEN'; payload: { id: string; patch: Partial<Screen> } }
   | { type: 'DELETE_SCREEN'; payload: string }
   | { type: 'RENAME_SCREEN'; payload: { id: string; name: string } }
   | { type: 'SET_ACTIVE_SCREEN'; payload: string }

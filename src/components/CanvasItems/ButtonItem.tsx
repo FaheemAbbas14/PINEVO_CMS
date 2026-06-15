@@ -1,22 +1,22 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import { useLanguage } from '../../App';
-import './CanvasItem.css';
 import { measureText } from '../../utils/measureText';
+import { resolveComponentSize } from '../../utils/componentSizing';
+import './CanvasItem.css';
 
 interface Props {
   component: CanvasComponent;
 }
 
 export default function ButtonItem({ component }: Props) {
-  const { selectComponent, setActiveScreen, state, updateComponent } = useCMS();
+  const { selectComponent, setActiveScreen, state } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const isPreviewMode = state.previewMode;
   const itemRef = useRef<HTMLDivElement>(null);
-  const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.EXISTING_COMPONENT,
@@ -85,25 +85,14 @@ export default function ButtonItem({ component }: Props) {
   const label = component.labelMode === 'lang'
     ? (component.labelKey ? t(component.labelKey) : '')
     : (component.text || 'Button');
-
-  // Dynamically calculate width/height based on label
-  useEffect(() => {
-    // Compose font string
-    const fontSize = component.fontSize || 14;
-    const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
-    const font = `${fontSize}px ${fontFamily}`;
-    const { width, height } = measureText(label, font);
-    // Add some padding
-    const padW = 32; // left+right
-    const padH = 16; // top+bottom
-    const newWidth = width + padW;
-    const newHeight = height + padH;
-    setDynamicSize({ width: newWidth, height: newHeight });
-    // Optionally update component state if different
-    if (component.width !== newWidth || component.height !== newHeight) {
-      updateComponent({ ...component, width: newWidth, height: newHeight });
-    }
-  }, [label, component.fontSize, component.fontFamily]);
+  const textAlign = component.textAlign || 'center';
+  const fontSize = component.fontSize || 14;
+  const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
+  const measured = measureText(label || 'Button', `${fontSize}px ${fontFamily}`);
+  const size = resolveComponentSize(component, state.project?.type, {
+    width: measured.width + 32,
+    height: measured.height + 16,
+  });
 
   return (
     <div
@@ -112,8 +101,8 @@ export default function ButtonItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: dynamicSize.width,
-        height: dynamicSize.height,
+        width: size.width,
+        height: size.height,
       }}
       onClick={handleButtonClick}
     >
@@ -121,10 +110,11 @@ export default function ButtonItem({ component }: Props) {
         style={{
           backgroundColor: component.bgColor,
           color: component.color,
-          fontSize: `${component.fontSize}px`,
+          fontSize: `${fontSize}px`,
           borderRadius: `${component.borderRadius}px`,
           width: '100%',
           height: '100%',
+          textAlign,
           border: 'none',
           cursor: 'pointer',
         }}

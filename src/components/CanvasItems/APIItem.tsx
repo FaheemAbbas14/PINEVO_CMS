@@ -1,35 +1,27 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import './CanvasItem.css';
 import { measureText } from '../../utils/measureText';
+import { resolveComponentSize } from '../../utils/componentSizing';
 
 interface Props {
   component: CanvasComponent;
 }
 
 export default function APIItem({ component }: Props) {
-  const { selectComponent, state, updateComponent } = useCMS();
+  const { selectComponent, state } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const itemRef = useRef<HTMLDivElement>(null);
   const isPreviewMode = state.previewMode;
-  const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
-  // Dynamically calculate width/height based on API label
-  useEffect(() => {
-    const mainText = `${component.httpMethod || ''} ${component.apiUrl || ''}`.trim() || 'API';
-    const font = '11px sans-serif';
-    const { width, height } = measureText(mainText, font);
-    const padW = 48;
-    const padH = 20;
-    const newWidth = width + padW;
-    const newHeight = height + padH;
-    setDynamicSize({ width: newWidth, height: newHeight });
-    if (component.width !== newWidth || component.height !== newHeight) {
-      updateComponent({ ...component, width: newWidth, height: newHeight });
-    }
-  }, [component.httpMethod, component.apiUrl]);
+  const mainText = `${component.httpMethod || ''} ${component.apiUrl || ''}`.trim() || 'API';
+  const measured = measureText(mainText, '11px sans-serif');
+  const size = resolveComponentSize(component, state.project?.type, {
+    width: measured.width + 48,
+    height: measured.height + 20,
+  });
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.EXISTING_COMPONENT,
@@ -70,8 +62,8 @@ export default function APIItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: dynamicSize.width,
-        height: dynamicSize.height,
+        width: size.width,
+        height: size.height,
         backgroundColor: '#f0f9ff',
         color: '#0369a1',
         border: '1px solid #bae6fd',

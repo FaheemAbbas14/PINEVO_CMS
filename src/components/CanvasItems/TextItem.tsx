@@ -1,11 +1,12 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import { useLanguage } from '../../App';
-import './CanvasItem.css';
 import { measureText } from '../../utils/measureText';
+import { resolveComponentSize } from '../../utils/componentSizing';
+import './CanvasItem.css';
 
 interface Props {
   component: CanvasComponent;
@@ -16,7 +17,6 @@ export default function TextItem({ component }: Props) {
   const { selectComponent, state } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const itemRef = useRef<HTMLDivElement>(null);
-  const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DragTypes.EXISTING_COMPONENT,
@@ -49,19 +49,15 @@ export default function TextItem({ component }: Props) {
   const label = component.labelMode === 'lang'
     ? (component.labelKey ? t(component.labelKey) : '')
     : (component.text || 'Text');
-
-  // Dynamically calculate width/height based on label
-  useEffect(() => {
-    const fontSize = component.fontSize || 14;
-    const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
-    const font = `${fontSize}px ${fontFamily}`;
-    const { width, height } = measureText(label, font);
-    const padW = 24;
-    const padH = 12;
-    const newWidth = width + padW;
-    const newHeight = height + padH;
-    setDynamicSize({ width: newWidth, height: newHeight });
-  }, [label, component.fontSize, component.fontFamily]);
+  const textAlign = component.textAlign || 'left';
+  const justifyContent = textAlign === 'center' ? 'center' : textAlign === 'right' ? 'flex-end' : 'flex-start';
+  const fontSize = component.fontSize || 14;
+  const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
+  const measured = measureText(label || 'Text', `${fontSize}px ${fontFamily}`);
+  const size = resolveComponentSize(component, state.project?.type, {
+    width: measured.width + 24,
+    height: measured.height + 12,
+  });
 
   return (
     <div
@@ -70,17 +66,18 @@ export default function TextItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: dynamicSize.width,
-        height: dynamicSize.height,
+        width: size.width,
+        height: size.height,
         color: component.color,
-        fontSize: `${component.fontSize}px`,
+        fontSize: `${fontSize}px`,
         fontWeight: component.fontWeight || 'normal',
         fontFamily: component.fontFamily ? `'${component.fontFamily}', sans-serif` : undefined,
-        textAlign: 'left',
-        justifyContent: 'flex-start',
-        alignItems: 'flex-start',
+        textAlign,
+        justifyContent,
+        alignItems: 'center',
         display: 'flex',
         paddingLeft: 8,
+        paddingRight: 8,
       }}
       onClick={(e) => {
         e.stopPropagation();

@@ -12,24 +12,77 @@ import ImageItem from '../CanvasItems/ImageItem';
 import AudioItem from '../CanvasItems/AudioItem';
 import APIItem from '../CanvasItems/APIItem';
 import CommandItem from '../CanvasItems/CommandItem';
+import ViewItem from '../CanvasItems/ViewItem';
+import { measureText } from '../../utils/measureText';
 import './Canvas.css';
+
+function getTextBasedSize(text: string, fontSize: number, padW: number, padH: number) {
+  const font = `${fontSize}px sans-serif`;
+  const measured = measureText(text, font);
+  return {
+    width: measured.width + padW,
+    height: measured.height + padH,
+  };
+}
 
 function getDefaultComponentProps(type: string): Partial<CanvasComponent> {
   switch (type) {
-    case 'text':
-      return { width: 160, height: 40, text: 'Text Field', fontSize: 16, color: '#1a1a2e' };
-    case 'text_input':
-      return { width: 200, height: 48, text: 'Input', fontSize: 16, color: '#1a1a2e', bgColor: '#ffffff', borderRadius: 8, placeholder: 'Enter text...' };
-    case 'button':
-      return { width: 120, height: 40, text: 'Button', fontSize: 14, color: '#ffffff', bgColor: '#4f46e5', borderRadius: 8, function: 'none' };
+    case 'text': {
+      const text = 'Text Field';
+      const fontSize = 16;
+      const size = getTextBasedSize(text, fontSize, 24, 12);
+      return { width: size.width, height: size.height, widthMode: 'wrap_content', heightMode: 'wrap_content', text, fontSize, color: '#1a1a2e', textAlign: 'left' };
+    }
+    case 'text_input': {
+      const placeholder = 'Enter text...';
+      const fontSize = 16;
+      const size = getTextBasedSize(placeholder, fontSize, 32, 16);
+      return {
+        width: size.width,
+        height: size.height,
+        widthMode: 'wrap_content',
+        heightMode: 'wrap_content',
+        text: 'Input',
+        fontSize,
+        color: '#1a1a2e',
+        borderColor: '#e5e7eb',
+        bgColor: '#ffffff',
+        borderRadius: 8,
+        inputBorderStyle: 'rounded',
+        textAlign: 'center',
+        inputType: 'text',
+        maxLength: 0,
+        placeholder,
+      };
+    }
+    case 'button': {
+      const text = 'Button';
+      const fontSize = 14;
+      const size = getTextBasedSize(text, fontSize, 32, 16);
+      return {
+        width: size.width,
+        height: size.height,
+        widthMode: 'wrap_content',
+        heightMode: 'wrap_content',
+        text,
+        fontSize,
+        color: '#ffffff',
+        bgColor: '#4f46e5',
+        borderRadius: 8,
+        textAlign: 'center',
+        function: 'none',
+      };
+    }
     case 'image':
-      return { width: 120, height: 90, imageUrl: '' };
+      return { width: 120, height: 90, widthMode: 'wrap_content', heightMode: 'wrap_content', imageUrl: '' };
+    case 'view':
+      return { width: 180, height: 120, widthMode: 'wrap_content', heightMode: 'wrap_content', visible: true, bgColor: '#e5e7eb', borderRadius: 0 };
     case 'audio':
-      return { width: 200, height: 60, audioUrl: '' };
+      return { width: 200, height: 60, widthMode: 'wrap_content', heightMode: 'wrap_content', audioUrl: '' };
     case 'api':
-      return { width: 140, height: 50, apiUrl: 'https://api.example.com', httpMethod: 'GET' };
+      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', apiUrl: 'https://api.example.com', httpMethod: 'GET' };
     case 'command':
-      return { width: 140, height: 50, command: 'echo "hello"' };
+      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', command: 'echo "hello"' };
     default:
       return {};
   }
@@ -45,6 +98,7 @@ export default function Canvas() {
   const isFlex = state.project?.type === 'flex';
   const canvasWidth = isFlex ? FLEX_CANVAS_WIDTH : PIN_EVO_CANVAS_WIDTH;
   const canvasHeight = isFlex ? FLEX_CANVAS_HEIGHT : PIN_EVO_CANVAS_HEIGHT;
+  const canvasBackgroundColor = activeScreen?.backgroundColor || state.project?.defaultCanvasBgColor || '#ffffff';
 
   // Disable drop functionality in preview mode
   const isPreviewMode = state.previewMode;
@@ -114,15 +168,12 @@ export default function Canvas() {
       <div
         ref={setCanvasRef}
         className={`canvas ${isOver ? 'drag-over' : ''}`}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: '100%', height: '100%', background: canvasBackgroundColor }}
         onClick={() => selectComponent(null)}
         role="application"
         aria-label="Component canvas - drag and drop area"
         aria-describedby="canvas-label"
       >
-        {/* Grid overlay */}
-        <div className="canvas-grid" />
-
         {activeScreen?.components.length === 0 && (
           <div className="canvas-empty">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" strokeWidth="1.2">
@@ -133,7 +184,15 @@ export default function Canvas() {
           </div>
         )}
 
-        {activeScreen?.components.map((component) => {
+        {[...(activeScreen?.components || [])]
+          .sort((a, b) => {
+            const aIsView = a.type === 'view';
+            const bIsView = b.type === 'view';
+            if (aIsView === bIsView) return 0;
+            return aIsView ? -1 : 1;
+          })
+          .map((component) => {
+          if (component.type === 'view') return <ViewItem key={component.id} component={component} />;
           if (component.type === 'text') return <TextItem key={component.id} component={component} locale={locale} />;
           if (component.type === 'text_input') return <TextInputItem key={component.id} component={component} />;
           if (component.type === 'button') return <ButtonItem key={component.id} component={component} />;

@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, useMemo } from 'react';
+import React, { useState, createContext, useContext, useMemo, useEffect, useCallback } from 'react';
 import { DndProvider } from 'react-dnd';
 
 import { loadLanguageFromProject } from './locales/persistLanguage';
@@ -21,10 +21,19 @@ function useLanguage() {
 
 function LanguageProvider({ children }: { readonly children: React.ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en');
+  const [languageRevision, setLanguageRevision] = useState(0);
+
+  useEffect(() => {
+    const onLanguagesChanged = () => setLanguageRevision((rev) => rev + 1);
+    window.addEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+    return () => {
+      window.removeEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+    };
+  }, []);
 
   // Resolve translation with graceful fallback so canvas text remains visible
   // when a key is missing in the selected language.
-  const t = (key: string) => {
+  const t = useCallback((key: string) => {
     const selected = loadLanguageFromProject(locale);
     if (selected && typeof selected[key] === 'string' && selected[key]) return selected[key];
 
@@ -32,9 +41,9 @@ function LanguageProvider({ children }: { readonly children: React.ReactNode }) 
     if (english && typeof english[key] === 'string' && english[key]) return english[key];
 
     return key;
-  };
+  }, [locale, languageRevision]);
 
-  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale]);
+  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
   return (
     <LanguageContext.Provider value={value}>
       {children}

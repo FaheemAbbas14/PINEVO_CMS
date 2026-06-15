@@ -151,8 +151,28 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
       };
     }
 
+    case 'UPDATE_PROJECT':
+      if (!state.project) return state;
+      return {
+        ...state,
+        project: {
+          ...state.project,
+          ...action.payload,
+        },
+      };
+
     case 'ADD_SCREEN':
       return { ...state, screens: [...state.screens, action.payload], activeScreenId: action.payload.id };
+
+    case 'UPDATE_SCREEN':
+      return {
+        ...state,
+        screens: state.screens.map((s) =>
+          s.id === action.payload.id
+            ? { ...s, ...action.payload.patch }
+            : s
+        ),
+      };
 
     case 'DELETE_SCREEN': {
       if (state.screens.length <= 1) return state;
@@ -332,10 +352,12 @@ interface CMSContextValue {
   activeScreen: Screen | undefined;
   selectedComponent: CanvasComponent | undefined;
   setProject: (project: { name: string; type: 'pin_evo' | 'flex' }) => void;
+  updateProjectSettings: (settings: Partial<Project>) => void;
   addScreen: () => void;
   deleteScreen: (id: string) => void;
   renameScreen: (id: string, name: string) => void;
   setActiveScreen: (id: string) => void;
+  updateActiveScreenSettings: (settings: Partial<Screen>) => void;
         // Patch: Convert UUID ids to human-friendly if needed
   addComponent: (component: CanvasComponent) => void;
   updateComponent: (component: CanvasComponent) => void;
@@ -363,20 +385,125 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const latestStateRef = useRef<CMSState>(state);
 
   useEffect(() => {
-    void (async () => {
-      const persistedHandle = await loadPersistedProjectFileHandle();
-      if (persistedHandle) {
-        currentProjectFileHandleRef.current = persistedHandle;
-      }
-    })();
-  }, []);
-
-  useEffect(() => {
     latestStateRef.current = state;
   }, [state]);
 
   const activeScreen = state.screens.find((s) => s.id === state.activeScreenId);
   const selectedComponent = activeScreen?.components.find((c) => c.id === state.selectedComponentId);
+
+  const importProjectState = useCallback((importedState: any) => {
+    if (!importedState.project || !importedState.screens) {
+      alert('Invalid project file. Please select a valid PINEVO project file.');
+      return false;
+    }
+
+    const usedScreenIds = new Set<string>();
+    const usedComponentIds = new Set<string>();
+
+    const toBaseDisplayId = (component: any): string => {
+      if (component?.type === 'text_input') return 'textbox';
+      if (component?.type === 'text') return 'label';
+      return typeof component?.type === 'string' && component.type.trim() ? component.type.trim() : 'component';
+    };
+
+    const normalizeDisplayId = (raw: any, fallbackBase: string, used: Set<string>): string => {
+      const candidate = typeof raw === 'string' && raw.trim() ? raw.trim() : fallbackBase;
+      let next = candidate;
+      let n = 2;
+      while (used.has(next)) {
+        next = `${candidate}_${n}`;
+        n += 1;
+      }
+      used.add(next);
+      return next;
+    };
+
+    importedState.screens = importedState.screens.map((screen: any, screenIdx: number) => {
+      const nextScreen = { ...screen };
+      if (typeof nextScreen.id !== 'string' || !nextScreen.id || usedScreenIds.has(nextScreen.id)) {
+        nextScreen.id = uuidv4();
+      }
+      usedScreenIds.add(nextScreen.id);
+
+      const usedDisplayIds = new Set<string>();
+      const components = Array.isArray(nextScreen.components) ? nextScreen.components : [];
+
+      nextScreen.components = components.map((component: any, componentIdx: number) => {
+        const nextComponent = { ...component };
+
+        if (typeof nextComponent.id !== 'string' || !nextComponent.id || usedComponentIds.has(nextComponent.id)) {
+          nextComponent.id = uuidv4();
+        }
+        usedComponentIds.add(nextComponent.id);
+
+        const fallbackBase = `${toBaseDisplayId(nextComponent)}${componentIdx + 1}`;
+        nextComponent.displayId = normalizeDisplayId(nextComponent.displayId, fallbackBase, usedDisplayIds);
+
+        if (nextComponent.type === 'text' && nextComponent.labelKey && nextComponent.labelMode !== 'lang') {
+          nextComponent.labelMode = 'lang';
+        }
+
+        return nextComponent;
+      });
+
+      if (!nextScreen.name || typeof nextScreen.name !== 'string') {
+        nextScreen.name = `Screen ${screenIdx + 1}`;
+      }
+
+      return nextScreen;
+    });
+
+    const projectLanguages = (importedState.languages && typeof importedState.languages === 'object')
+      ? importedState.languages
+      : {};
+    replaceAllPersistedLanguages(projectLanguages, { emit: true });
+
+    const importedProject = {
+      ...importedState.project,
+      defaultCanvasBgColor: importedState.project?.defaultCanvasBgColor || '#ffffff',
+    };
+
+    dispatch({ type: 'SET_PROJECT', payload: importedProject });
+    dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
+    dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
+    dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
+    return true;
+  }, []);
+
+  useEffect(() => {
+    void (async () => {
+      const persistedHandle = await loadPersistedProjectFileHandle();
+      if (!persistedHandle) {
+        return;
+      }
+
+      currentProjectFileHandleRef.current = persistedHandle;
+
+      try {
+        if (typeof persistedHandle.queryPermission === 'function') {
+          const status = await persistedHandle.queryPermission({ mode: 'read' });
+          if (status !== 'granted' && typeof persistedHandle.requestPermission === 'function') {
+            const requested = await persistedHandle.requestPermission({ mode: 'read' });
+            if (requested !== 'granted') {
+              return;
+            }
+          }
+        }
+
+        const file = await persistedHandle.getFile();
+        const text = await file.text();
+        const projectData = JSON.parse(text);
+        const importedState = projectData.state || projectData;
+        const ok = importProjectState(importedState);
+        if (!ok) {
+          currentProjectFileHandleRef.current = null;
+          void savePersistedProjectFileHandle(null);
+        }
+      } catch (err) {
+        console.warn('Failed to auto-restore persisted project handle:', err);
+      }
+    })();
+  }, [importProjectState]);
 
   const setProject = useCallback((project: { name: string; type: 'pin_evo' | 'flex' }) => {
     replaceAllPersistedLanguages({ en: {} }, { emit: false });
@@ -384,8 +511,13 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       id: uuidv4(),
       name: project.name,
       type: project.type,
+      defaultCanvasBgColor: '#ffffff',
     };
     dispatch({ type: 'SET_PROJECT', payload: newProject });
+  }, []);
+
+  const updateProjectSettings = useCallback((settings: Partial<Project>) => {
+    dispatch({ type: 'UPDATE_PROJECT', payload: settings });
   }, []);
 
   const addScreen = useCallback(() => {
@@ -408,6 +540,11 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const setActiveScreen = useCallback((id: string) => {
     dispatch({ type: 'SET_ACTIVE_SCREEN', payload: id });
   }, []);
+
+  const updateActiveScreenSettings = useCallback((settings: Partial<Screen>) => {
+    if (!state.activeScreenId) return;
+    dispatch({ type: 'UPDATE_SCREEN', payload: { id: state.activeScreenId, patch: settings } });
+  }, [state.activeScreenId]);
 
   // Generate a default unique ID for a new component based on type and index in the screen
   const addComponent = useCallback(
@@ -605,79 +742,6 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const loadProject = useCallback(() => {
     const pickerWindow = globalThis as any;
 
-    function handleImport(importedState: any) {
-      if (!importedState.project || !importedState.screens) {
-        alert('Invalid project file. Please select a valid PINEVO project file.');
-        return;
-      }
-
-      const usedScreenIds = new Set<string>();
-      const usedComponentIds = new Set<string>();
-
-      const toBaseDisplayId = (component: any): string => {
-        if (component?.type === 'text_input') return 'textbox';
-        if (component?.type === 'text') return 'label';
-        return typeof component?.type === 'string' && component.type.trim() ? component.type.trim() : 'component';
-      };
-
-      const normalizeDisplayId = (raw: any, fallbackBase: string, used: Set<string>): string => {
-        const candidate = typeof raw === 'string' && raw.trim() ? raw.trim() : fallbackBase;
-        let next = candidate;
-        let n = 2;
-        while (used.has(next)) {
-          next = `${candidate}_${n}`;
-          n += 1;
-        }
-        used.add(next);
-        return next;
-      };
-
-      importedState.screens = importedState.screens.map((screen: any, screenIdx: number) => {
-        const nextScreen = { ...screen };
-        if (typeof nextScreen.id !== 'string' || !nextScreen.id || usedScreenIds.has(nextScreen.id)) {
-          nextScreen.id = uuidv4();
-        }
-        usedScreenIds.add(nextScreen.id);
-
-        const usedDisplayIds = new Set<string>();
-        const components = Array.isArray(nextScreen.components) ? nextScreen.components : [];
-
-        nextScreen.components = components.map((component: any, componentIdx: number) => {
-          const nextComponent = { ...component };
-
-          if (typeof nextComponent.id !== 'string' || !nextComponent.id || usedComponentIds.has(nextComponent.id)) {
-            nextComponent.id = uuidv4();
-          }
-          usedComponentIds.add(nextComponent.id);
-
-          const fallbackBase = `${toBaseDisplayId(nextComponent)}${componentIdx + 1}`;
-          nextComponent.displayId = normalizeDisplayId(nextComponent.displayId, fallbackBase, usedDisplayIds);
-
-          if (nextComponent.type === 'text' && nextComponent.labelKey && nextComponent.labelMode !== 'lang') {
-            nextComponent.labelMode = 'lang';
-          }
-
-          return nextComponent;
-        });
-
-        if (!nextScreen.name || typeof nextScreen.name !== 'string') {
-          nextScreen.name = `Screen ${screenIdx + 1}`;
-        }
-
-        return nextScreen;
-      });
-
-      const projectLanguages = (importedState.languages && typeof importedState.languages === 'object')
-        ? importedState.languages
-        : {};
-      replaceAllPersistedLanguages(projectLanguages, { emit: false });
-
-      dispatch({ type: 'SET_PROJECT', payload: importedState.project });
-      dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
-      dispatch({ type: 'SET_ACTIVE_SCREEN', payload: importedState.activeScreenId || importedState.screens[0]?.id });
-      dispatch({ type: 'UPDATE_SANDBOX_CONFIG', payload: importedState.sandboxConfig || {} });
-    }
-
     if (typeof pickerWindow.showOpenFilePicker === 'function') {
       void (async () => {
         try {
@@ -698,7 +762,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
 
           currentProjectFileHandleRef.current = handle;
           void savePersistedProjectFileHandle(handle);
-          handleImport(importedState);
+          importProjectState(importedState);
         } catch (err: any) {
           if (err?.name === 'AbortError') {
             return;
@@ -724,14 +788,14 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
 
         currentProjectFileHandleRef.current = null;
         void savePersistedProjectFileHandle(null);
-        handleImport(importedState);
+        importProjectState(importedState);
       } catch (err) {
         console.error('Error loading project:', err);
         alert('Failed to load project. Please select a valid PINEVO project file.');
       }
     };
     input.click();
-  }, []);
+  }, [importProjectState]);
 
   const setSandboxMode = useCallback((enabled: boolean) => {
     dispatch({ type: 'SET_SANDBOX_MODE', payload: enabled });
@@ -780,10 +844,12 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     activeScreen,
     selectedComponent,
     setProject,
+    updateProjectSettings,
     addScreen,
     deleteScreen,
     renameScreen,
     setActiveScreen,
+    updateActiveScreenSettings,
     addComponent,
     updateComponent,
     deleteComponent,
@@ -800,7 +866,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     resetSandboxConfig,
     updateScreenHardwareButton,
     clearSession,
-  }), [state, activeScreen, selectedComponent, setProject, addScreen, deleteScreen, renameScreen, setActiveScreen, addComponent, updateComponent, deleteComponent, selectComponent, moveComponent, downloadExportZip, saveScreens, saveAsHtml, saveProject, loadProject, setSandboxMode, setPreviewMode, updateSandboxConfig, resetSandboxConfig, updateScreenHardwareButton, clearSession]);
+  }), [state, activeScreen, selectedComponent, setProject, updateProjectSettings, addScreen, deleteScreen, renameScreen, setActiveScreen, updateActiveScreenSettings, addComponent, updateComponent, deleteComponent, selectComponent, moveComponent, downloadExportZip, saveScreens, saveAsHtml, saveProject, loadProject, setSandboxMode, setPreviewMode, updateSandboxConfig, resetSandboxConfig, updateScreenHardwareButton, clearSession]);
   return (
     <CMSContext.Provider value={contextValue}>
       {children}
