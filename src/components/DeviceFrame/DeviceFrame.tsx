@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './DeviceFrame.css';
 import { useCMS } from '../../context/AppContext';
 import { DEVICE_ACTIONS } from '../../config/actions';
+import { CANVAS_CONFIG } from '../../config/project';
 
 interface Props {
   children: React.ReactNode;
@@ -31,6 +32,8 @@ const FLEX_KEYPAD_BUTTONS: { id: HardwareButtonId, label?: string, icon?: React.
 export default function DeviceFrame({ children }: Props) {
   const { state, setActiveScreen, updateScreenHardwareButton, selectComponent } = useCMS();
   const isFlex = state.project?.type === 'flex';
+  const screenWidth = isFlex ? CANVAS_CONFIG.dimensions.flex.width : CANVAS_CONFIG.dimensions.pinEvo.width;
+  const screenHeight = isFlex ? CANVAS_CONFIG.dimensions.flex.height : CANVAS_CONFIG.dimensions.pinEvo.height;
   const [selectedHardwareButton, setSelectedHardwareButton] = useState<HardwareButtonId | null>(null);
 
   // Get current screen's hardware button configurations
@@ -139,7 +142,10 @@ export default function DeviceFrame({ children }: Props) {
             </div>
 
             <div className="flex-device-screen-bezel">
-              <div className="flex-screen-overlay">
+              <div
+                className="flex-screen-overlay"
+                style={{ width: `${screenWidth}px`, height: `${screenHeight}px` }}
+              >
                 {children}
               </div>
             </div>
@@ -221,7 +227,10 @@ export default function DeviceFrame({ children }: Props) {
             <div className="pin-evo-device-body">
 
             <div className="pin-evo-device-screen-bezel">
-              <div className="pin-evo-screen-overlay">
+              <div
+                className="pin-evo-screen-overlay"
+                style={{ width: `${screenWidth}px`, height: `${screenHeight}px` }}
+              >
                 {children}
               </div>
             </div>

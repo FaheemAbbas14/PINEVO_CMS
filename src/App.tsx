@@ -84,7 +84,6 @@ function AppContent() {
   };
 
   // Show welcome screen when no project is selected
-  const [inputValue, setInputValue] = useState<string>("");
   if (!state.project) {
     return (
       <div className="app-container">
@@ -100,18 +99,6 @@ function AppContent() {
             </div>
             <h1>{t('welcome')} to PINEVO CMS</h1>
             <p>{t('project')}: Create and manage content for your PIN devices</p>
-            {/* Language-linked text field example */}
-            <div style={{ margin: '16px 0' }}>
-              <label htmlFor="home-input" style={{ fontWeight: 500 }}>{t('home_input_label')}:</label>
-              <input
-                id="home-input"
-                type="text"
-                style={{ marginLeft: 8, padding: 4, fontSize: 16 }}
-                value={inputValue || t('home_input_value')}
-                onChange={e => setInputValue(e.target.value)}
-                placeholder={t('home_input_value')}
-              />
-            </div>
             <div style={{ marginBottom: 16 }}>
               <label htmlFor="lang-select">🌐 </label>
               <select

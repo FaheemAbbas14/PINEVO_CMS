@@ -1,3 +1,5 @@
+import { CANVAS_CONFIG } from '../config/project';
+
 // Project types
 export type ProjectType = 'pin_evo' | 'flex';
 
@@ -8,11 +10,11 @@ export interface Project {
 }
 
 // Canvas dimensions (hardware screen constraint)
-export const PIN_EVO_CANVAS_WIDTH = 480;
-export const PIN_EVO_CANVAS_HEIGHT = 320;
+export const PIN_EVO_CANVAS_WIDTH = CANVAS_CONFIG.dimensions.pinEvo.width;
+export const PIN_EVO_CANVAS_HEIGHT = CANVAS_CONFIG.dimensions.pinEvo.height;
 
-export const FLEX_CANVAS_WIDTH = 480;
-export const FLEX_CANVAS_HEIGHT = 800;
+export const FLEX_CANVAS_WIDTH = CANVAS_CONFIG.dimensions.flex.width;
+export const FLEX_CANVAS_HEIGHT = CANVAS_CONFIG.dimensions.flex.height;
 
 export type ComponentType = 'text' | 'text_input' | 'button' | 'image' | 'api' | 'command' | 'audio';
 

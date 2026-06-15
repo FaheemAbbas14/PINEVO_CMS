@@ -114,6 +114,17 @@ export const EXPORT_CONFIG = {
 // ============================================================================
 
 export const CANVAS_CONFIG = {
+    // Hardware canvas dimensions by device profile.
+    dimensions: {
+        pinEvo: {
+            width: 380,
+            height: 253,
+        },
+        flex: {
+            width: 480,
+            height: 800,
+        },
+    },
     // Default zoom/scale level on app load.
     defaultZoomLevel: 1,
     // Zoom increment on ctrl+scroll.
