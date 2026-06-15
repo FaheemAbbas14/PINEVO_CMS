@@ -105,10 +105,6 @@ const FIELD_CONFIG = {
     { key: 'imageUrl', label: 'Image URL', type: 'text' },
   ],
   view: [
-    { key: 'visible', label: 'Visibility', type: 'select', options: [
-      { value: 'true', label: 'Show' },
-      { value: 'false', label: 'Hide' },
-    ] },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#e5e7eb' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
   ],
@@ -679,6 +675,16 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 <option value="fixed">Fixed</option>
                 <option value="match_parent">Match Parent</option>
                 <option value="wrap_content">Wrap Content</option>
+              </select>
+            </div>
+            <div className="property-field">
+              <label>Visibility</label>
+              <select
+                value={String(localValues.visible ?? true)}
+                onChange={e => handleChange('visible', e.target.value === 'true')}
+              >
+                <option value="true">Show</option>
+                <option value="false">Hide</option>
               </select>
             </div>
             {(localValues.heightMode || 'fixed') === 'fixed' && (

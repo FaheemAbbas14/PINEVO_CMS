@@ -4,8 +4,8 @@ import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import { useLanguage } from '../../App';
-import { measureText } from '../../utils/measureText';
 import { resolveComponentSize } from '../../utils/componentSizing';
+import { getAvailableWidth, measureWrappedText } from '../../utils/textWrap';
 import './CanvasItem.css';
 
 interface Props {
@@ -88,11 +88,16 @@ export default function ButtonItem({ component }: Props) {
   const textAlign = component.textAlign || 'center';
   const fontSize = component.fontSize || 14;
   const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
-  const measured = measureText(label || 'Button', `${fontSize}px ${fontFamily}`);
+  const fontSpec = `${fontSize}px ${fontFamily}`;
+  const availableWidth = Math.max(24, getAvailableWidth(state.project?.type, component.x));
+  const maxContentWidth = Math.max(1, availableWidth - 16);
+  const wrapped = measureWrappedText(label || 'Button', fontSpec, maxContentWidth);
   const size = resolveComponentSize(component, state.project?.type, {
-    width: measured.width + 32,
-    height: measured.height + 16,
+    width: wrapped.width + 16,
+    height: wrapped.height + 16,
   });
+  const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
+  const clampedWidth = isWrapWidth ? Math.min(size.width, availableWidth) : size.width;
 
   return (
     <div
@@ -101,7 +106,7 @@ export default function ButtonItem({ component }: Props) {
       style={{
         left: component.x,
         top: component.y,
-        width: size.width,
+        width: clampedWidth,
         height: size.height,
       }}
       onClick={handleButtonClick}
@@ -114,6 +119,11 @@ export default function ButtonItem({ component }: Props) {
           borderRadius: `${component.borderRadius}px`,
           width: '100%',
           height: '100%',
+          whiteSpace: 'normal',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          lineHeight: 1.2,
+          padding: '0 8px',
           textAlign,
           border: 'none',
           cursor: 'pointer',

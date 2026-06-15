@@ -185,6 +185,7 @@ export default function Canvas() {
         )}
 
         {[...(activeScreen?.components || [])]
+          .filter((component) => component.visible !== false)
           .sort((a, b) => {
             const aIsView = a.type === 'view';
             const bIsView = b.type === 'view';

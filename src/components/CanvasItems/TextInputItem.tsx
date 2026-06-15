@@ -4,8 +4,8 @@ import { DragTypes } from '../../types';
 import type { CanvasComponent } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import { useLanguage } from '../../App';
-import { measureText } from '../../utils/measureText';
 import { resolveComponentSize } from '../../utils/componentSizing';
+import { getAvailableWidth, measureWrappedText } from '../../utils/textWrap';
 import './CanvasItem.css';
 
 interface Props {
@@ -145,11 +145,16 @@ export default function TextInputItem({ component }: Props) {
     const borderColor = component.borderColor || '#e5e7eb';
     const fontSize = component.fontSize || 14;
     const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
-    const measured = measureText(centeredText || 'Enter text...', `${fontSize}px ${fontFamily}`);
+    const fontSpec = `${fontSize}px ${fontFamily}`;
+    const availableWidth = Math.max(24, getAvailableWidth(state.project?.type, component.x));
+    const maxContentWidth = Math.max(1, availableWidth - 24);
+    const wrapped = measureWrappedText(centeredText || 'Enter text...', fontSpec, maxContentWidth);
     const size = resolveComponentSize(component, state.project?.type, {
-        width: measured.width + 32,
-        height: measured.height + 16,
+        width: wrapped.width + 24,
+        height: wrapped.height + 16,
     });
+    const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
+    const clampedWidth = isWrapWidth ? Math.min(size.width, availableWidth) : size.width;
     const borderStyles = borderStyle === 'underline'
         ? {
             border: 'none',
@@ -169,7 +174,7 @@ export default function TextInputItem({ component }: Props) {
             style={{
                 left: component.x,
                 top: component.y,
-                width: size.width,
+                width: clampedWidth,
                 height: size.height,
                 fontSize: `${fontSize}px`,
             }}
@@ -190,18 +195,18 @@ export default function TextInputItem({ component }: Props) {
                     background: component.bgColor || '#ffffff',
                     ...borderStyles,
                     color: component.color || '#1a1a2e',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                 }}>
-                    <span className="text-input-placeholder" style={{ width: '100%', textAlign, color: component.color || '#1a1a2e' }}>{centeredText}</span>
+                    <span className="text-input-placeholder" style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.2 }}>{centeredText}</span>
                 </div>
             ) : (
                 <div className="text-input-content text-input-preview" style={{
                     background: component.bgColor || '#ffffff',
                     ...borderStyles,
                     color: component.color || '#1a1a2e',
-                    alignItems: 'center',
+                    alignItems: 'flex-start',
                 }}>
-                    <span style={{ width: '100%', textAlign, color: component.color || '#1a1a2e' }}>{displayText || centeredText}</span>
+                    <span style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.2 }}>{displayText || centeredText}</span>
                 </div>
             )}
         </div>
