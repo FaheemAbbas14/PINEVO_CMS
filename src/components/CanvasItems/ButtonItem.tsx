@@ -90,13 +90,14 @@ export default function ButtonItem({ component }: Props) {
   const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
   const fontSpec = `${fontSize}px ${fontFamily}`;
   const availableWidth = Math.max(24, getAvailableWidth(state.project?.type, component.x));
-  const maxContentWidth = Math.max(1, availableWidth - 16);
+  const wrapBoxWidth = availableWidth;
+  const maxContentWidth = Math.max(1, wrapBoxWidth - 16);
   const wrapped = measureWrappedText(label || 'Button', fontSpec, maxContentWidth);
+  const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
   const size = resolveComponentSize(component, state.project?.type, {
-    width: wrapped.width + 16,
+    width: isWrapWidth ? wrapBoxWidth : (wrapped.width + 16),
     height: wrapped.height + 16,
   });
-  const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
   const clampedWidth = isWrapWidth ? Math.min(size.width, availableWidth) : size.width;
 
   return (
@@ -122,7 +123,7 @@ export default function ButtonItem({ component }: Props) {
           whiteSpace: 'normal',
           overflowWrap: 'anywhere',
           wordBreak: 'break-word',
-          lineHeight: 1.2,
+          lineHeight: 1.25,
           padding: '0 8px',
           textAlign,
           border: 'none',

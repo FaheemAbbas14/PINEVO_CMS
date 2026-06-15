@@ -147,13 +147,14 @@ export default function TextInputItem({ component }: Props) {
     const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
     const fontSpec = `${fontSize}px ${fontFamily}`;
     const availableWidth = Math.max(24, getAvailableWidth(state.project?.type, component.x));
-    const maxContentWidth = Math.max(1, availableWidth - 24);
+    const wrapBoxWidth = availableWidth;
+    const maxContentWidth = Math.max(1, wrapBoxWidth - 24);
     const wrapped = measureWrappedText(centeredText || 'Enter text...', fontSpec, maxContentWidth);
+    const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
     const size = resolveComponentSize(component, state.project?.type, {
-        width: wrapped.width + 24,
+        width: isWrapWidth ? wrapBoxWidth : (wrapped.width + 24),
         height: wrapped.height + 16,
     });
-    const isWrapWidth = (component.widthMode || 'fixed') === 'wrap_content';
     const clampedWidth = isWrapWidth ? Math.min(size.width, availableWidth) : size.width;
     const borderStyles = borderStyle === 'underline'
         ? {
@@ -197,7 +198,7 @@ export default function TextInputItem({ component }: Props) {
                     color: component.color || '#1a1a2e',
                     alignItems: 'flex-start',
                 }}>
-                    <span className="text-input-placeholder" style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.2 }}>{centeredText}</span>
+                    <span className="text-input-placeholder" style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.25 }}>{centeredText}</span>
                 </div>
             ) : (
                 <div className="text-input-content text-input-preview" style={{
@@ -206,7 +207,7 @@ export default function TextInputItem({ component }: Props) {
                     color: component.color || '#1a1a2e',
                     alignItems: 'flex-start',
                 }}>
-                    <span style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.2 }}>{displayText || centeredText}</span>
+                    <span style={{ width: '100%', textAlign, color: component.color || '#1a1a2e', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.25 }}>{displayText || centeredText}</span>
                 </div>
             )}
         </div>

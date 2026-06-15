@@ -16,7 +16,11 @@ export function measureWrappedText(text: string, font: string, maxWidth: number)
   }
 
   context.font = font;
-  const lineHeight = Math.max(1, measureText('Mg', font).height + 2);
+  const fontSizeMatch = /(\d+(?:\.\d+)?)px/.exec(font);
+  const parsedFontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 14;
+  const renderLineHeight = Math.ceil(parsedFontSize * 1.25);
+  const measuredLineHeight = measureText('Mg', font).height + 2;
+  const lineHeight = Math.max(1, measuredLineHeight, renderLineHeight);
   const lines: string[] = [];
 
   const pushWordWrappedLine = (input: string) => {
