@@ -43,19 +43,11 @@ function collectUsedFontFiles(screens: Screen[]): string[] {
 }
 import JSZip from 'jszip';
 
-import { loadLanguageFromProject } from '../locales/persistLanguage';
+import { getPersistedLanguageCodes, loadLanguageFromProject } from '../locales/persistLanguage';
 
 // Dynamically get all language codes from localStorage
 function getAllPersistedLanguageCodes(): string[] {
-  const codes: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-      const lang = key.replace('project_lang_', '').replace('.json', '');
-      codes.push(lang);
-    }
-  }
-  return codes;
+  return getPersistedLanguageCodes();
 }
 
 function getAllPersistedLanguages(): Record<string, any> {

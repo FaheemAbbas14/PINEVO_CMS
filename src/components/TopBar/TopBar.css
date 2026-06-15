@@ -177,6 +177,42 @@
   flex-shrink: 0;
 }
 
+.topbar-language-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.topbar-language-label {
+  font-size: 13px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.topbar-language-select {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  font-size: 13px;
+  min-width: 88px;
+  max-width: 140px;
+}
+
+.topbar-language-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1280px) {
+  .topbar-language-label {
+    display: none;
+  }
+}
+
 .project-type-badge {
   font-size: 10px;
   font-weight: 600;

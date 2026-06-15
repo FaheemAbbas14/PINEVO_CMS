@@ -127,12 +127,6 @@ export default function TextInputItem({ component }: Props) {
         const newWidth = width + padW;
         const newHeight = height + padH;
         setDynamicSize({ width: newWidth, height: newHeight });
-        if (component.width !== newWidth || component.height !== newHeight) {
-            // updateComponent is available from useCMS
-            if (typeof (window as any).updateComponent === 'function') {
-                (window as any).updateComponent({ ...component, width: newWidth, height: newHeight });
-            }
-        }
     }, [label, placeholder, component.fontSize, component.fontFamily]);
 
     return (

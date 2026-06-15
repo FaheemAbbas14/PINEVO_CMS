@@ -29,7 +29,7 @@ const FLEX_KEYPAD_BUTTONS: { id: HardwareButtonId, label?: string, icon?: React.
 ];
 
 export default function DeviceFrame({ children }: Props) {
-  const { state, setActiveScreen, updateScreenHardwareButton } = useCMS();
+  const { state, setActiveScreen, updateScreenHardwareButton, selectComponent } = useCMS();
   const isFlex = state.project?.type === 'flex';
   const [selectedHardwareButton, setSelectedHardwareButton] = useState<HardwareButtonId | null>(null);
 
@@ -118,7 +118,7 @@ export default function DeviceFrame({ children }: Props) {
   };
 
   return (
-    <div className="device-frame-container">
+    <div className={`device-frame-container ${isFlex ? 'flex-layout' : 'pin-evo-layout'}`}>
       {isFlex ? (
         <div className="flex-device-skin-wrapper">
           <div className="flex-device-body">
@@ -193,8 +193,32 @@ export default function DeviceFrame({ children }: Props) {
           </div>
         </div>
       ) : (
-        <div className="pin-evo-device-skin-wrapper">
-          <div className="pin-evo-device-body">
+        <div className="pin-evo-frame-stack">
+          {!state.previewMode && (currentScreen?.components?.length ?? 0) > 0 && (
+            <div className="pin-evo-ui-tags-panel">
+              <div className="pin-evo-ui-tags-title">UI Tags</div>
+              <div className="pin-evo-ui-tags-list">
+                {currentScreen?.components.map((component, index) => {
+                  const tagLabel = component.displayId || `${component.type}${index + 1}`;
+                  const isSelected = state.selectedComponentId === component.id;
+                  return (
+                    <button
+                      key={component.id}
+                      type="button"
+                      className={`pin-evo-ui-tag ${isSelected ? 'active' : ''}`}
+                      onClick={() => selectComponent(component.id)}
+                      title={`Select ${tagLabel}`}
+                    >
+                      {tagLabel}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="pin-evo-device-skin-wrapper">
+            <div className="pin-evo-device-body">
 
             <div className="pin-evo-device-screen-bezel">
               <div className="pin-evo-screen-overlay">
@@ -254,6 +278,7 @@ export default function DeviceFrame({ children }: Props) {
                   <div className="pin-evo-scanner-laser"></div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>

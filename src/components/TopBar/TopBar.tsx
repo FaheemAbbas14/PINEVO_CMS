@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LanguageManagementModal } from './LanguageManagementModal';
 import { locales as initialLocales } from '../../locales';
-import { loadLanguageFromProject } from '../../locales/persistLanguage';
+import { getPersistedLanguageCodes, loadLanguageFromProject, replaceAllPersistedLanguages } from '../../locales/persistLanguage';
 import type { Locale, Translations } from '../../locales/types.d';
 import { useLanguage } from '../../App';
 
@@ -45,19 +45,41 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
     // Language management modal state
     const [showLangModal, setShowLangModal] = useState(false);
     const [languages, setLanguages] = useState<{ [key: string]: Translations }>(initialLocales);
-    // Always reload languages from persistent storage on every render
-    useEffect(() => {
+    const { locale, setLocale } = useLanguage();
+
+    const refreshLanguages = useCallback(() => {
       const loaded: { [key: string]: Translations } = {};
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-          const lang = key.replace('project_lang_', '').replace('.json', '');
-          loaded[lang] = loadLanguageFromProject(lang);
+      getPersistedLanguageCodes().forEach((lang) => {
+        loaded[lang] = loadLanguageFromProject(lang);
+      });
+
+      if (Object.keys(loaded).length === 0) {
+        loaded.en = {};
+      }
+
+      setLanguages(loaded);
+
+      if (!loaded[locale]) {
+        const firstLang = Object.keys(loaded)[0] as Locale | undefined;
+        if (firstLang) {
+          setLocale(firstLang);
         }
       }
-      setLanguages(loaded);
-    }, [showLangModal]);
-    const { locale, setLocale } = useLanguage();
+    }, [locale, setLocale]);
+
+    // Reload validated language sets for topbar dropdown.
+    useEffect(() => {
+      refreshLanguages();
+    }, [showLangModal, state.project?.id, refreshLanguages]);
+
+    // Keep dropdown synced when language data changes elsewhere (manager/sidebar/etc.).
+    useEffect(() => {
+      const onLanguagesChanged = () => refreshLanguages();
+      window.addEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+      return () => {
+        window.removeEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+      };
+    }, [refreshLanguages]);
 
   const handleBLEConnect = (device: BLEDevice) => {
     setBleDevice(device);
@@ -67,8 +89,10 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
 
   const handleCreateProject = (name: string, type: 'pin_evo' | 'flex') => {
     clearSession(); // Clear any saved session data
+    replaceAllPersistedLanguages({ en: {} }, { emit: false });
+    setLocale('en');
     setProject({ name, type });
-    setLanguages(initialLocales); // Reset languages to default
+    setLanguages({ en: {} });
     setShowNewProjectModal(false);
   };
 
@@ -330,14 +354,14 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
         )}
 
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="topbar-language-controls">
           {/* Language selector dropdown */}
-          <label htmlFor="topbar-language-select" style={{ fontSize: 14, color: '#374151' }}>Language:</label>
+          <label className="topbar-language-label" htmlFor="topbar-language-select">Language:</label>
           <select
             id="topbar-language-select"
             value={locale}
             onChange={e => setLocale(e.target.value as Locale)}
-            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #e5e7eb', fontSize: 14 }}
+            className="topbar-language-select"
             aria-label="Select language"
           >
             {Object.keys(languages).map((lang) => (
@@ -345,8 +369,7 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
             ))}
           </select>
           <button
-            className="btn-save btn-compact"
-            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            className="btn-save btn-compact topbar-language-btn"
             onClick={() => setShowLangModal(true)}
             aria-label="Manage languages"
           >

@@ -22,11 +22,16 @@ function useLanguage() {
 function LanguageProvider({ children }: { readonly children: React.ReactNode }) {
   const [locale, setLocale] = useState<Locale>('en');
 
-  // Always use persisted translations; return empty string if not found
+  // Resolve translation with graceful fallback so canvas text remains visible
+  // when a key is missing in the selected language.
   const t = (key: string) => {
-    const persisted = loadLanguageFromProject(locale);
-    if (persisted && typeof persisted[key] === 'string') return persisted[key];
-    return '';
+    const selected = loadLanguageFromProject(locale);
+    if (selected && typeof selected[key] === 'string' && selected[key]) return selected[key];
+
+    const english = loadLanguageFromProject('en');
+    if (english && typeof english[key] === 'string' && english[key]) return english[key];
+
+    return key;
   };
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale]);

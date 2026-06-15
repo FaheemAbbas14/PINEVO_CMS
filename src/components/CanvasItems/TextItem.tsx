@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function TextItem({ component }: Props) {
-  const { selectComponent, state, updateComponent } = useCMS();
+  const { selectComponent, state } = useCMS();
   const isSelected = state.selectedComponentId === component.id;
   const itemRef = useRef<HTMLDivElement>(null);
   const [dynamicSize, setDynamicSize] = useState<{ width: number, height: number }>({ width: component.width, height: component.height });
@@ -61,9 +61,6 @@ export default function TextItem({ component }: Props) {
     const newWidth = width + padW;
     const newHeight = height + padH;
     setDynamicSize({ width: newWidth, height: newHeight });
-    if (component.width !== newWidth || component.height !== newHeight) {
-      updateComponent({ ...component, width: newWidth, height: newHeight });
-    }
   }, [label, component.fontSize, component.fontFamily]);
 
   return (

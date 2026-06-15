@@ -4,67 +4,73 @@ import type { CMSState, CMSAction, Screen, CanvasComponent, Project, HardwareBut
 import type { DeployUIType } from '../services/exportService';
 import { FEATURE_FLAGS } from '../config/project';
 import { generateHtmlExport, generateJsonScreensExport } from '../services/exportService';
-import { loadLanguageFromProject, saveLanguageToProject } from '../locales/persistLanguage';
+import {
+  getAllPersistedLanguages,
+  replaceAllPersistedLanguages,
+} from '../locales/persistLanguage';
 
-// Local storage keys
-const STORAGE_KEY = 'pinevo_cms_state';
+// IndexedDB keys for file-handle persistence only
+const HANDLE_DB_NAME = 'pinevo_cms_file_handles';
+const HANDLE_STORE_NAME = 'handles';
+const HANDLE_KEY = 'current_project_file_handle';
 
-// Load initial state from localStorage
-function loadInitialState(): CMSState {
-
-  // --- Language persistence sync: ensure da has all en keys ---
-  try {
-    // Sync missing keys from en to da in persistent storage
-    const en = loadLanguageFromProject('en');
-    const da = loadLanguageFromProject('da');
-    let updated = false;
-    Object.keys(en).forEach(key => {
-      if (!(key in da)) {
-        da[key] = '';
-        updated = true;
+function getHandleDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(HANDLE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(HANDLE_STORE_NAME)) {
+        db.createObjectStore(HANDLE_STORE_NAME);
       }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function savePersistedProjectFileHandle(handle: FileSystemFileHandle | null): Promise<void> {
+  if (typeof indexedDB === 'undefined') return;
+  try {
+    const db = await getHandleDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(HANDLE_STORE_NAME);
+      if (handle) {
+        store.put(handle, HANDLE_KEY);
+      } else {
+        store.delete(HANDLE_KEY);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
-    if (updated) {
-      saveLanguageToProject('da', da);
-    }
-  } catch (e) {
-    console.warn('Failed to sync language keys in persistent storage:', e);
+    db.close();
+  } catch (err) {
+    console.warn('Failed to persist project file handle:', err);
   }
+}
 
+async function loadPersistedProjectFileHandle(): Promise<FileSystemFileHandle | null> {
+  if (typeof indexedDB === 'undefined') return null;
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // Validate that we have the required fields and project exists
-      if (parsed.screens && parsed.screens.length > 0 && parsed.project) {
-        // Patch: Convert UUID ids to human-friendly if needed
-        parsed.screens.forEach((screen: any) => {
-          if (Array.isArray(screen.components)) {
-            screen.components.forEach((component: any, idx: number) => {
-              let baseType;
-              if (/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(component.id)) {
-                if (component.type === 'text_input') {
-                  baseType = 'textbox';
-                } else if (component.type === 'text') {
-                  baseType = 'label';
-                } else {
-                  baseType = component.type;
-                }
-                // Find index for this type
-                const typeIndex = screen.components.filter((c: any, i: number) => c.type === component.type && i <= idx).length;
-                component.id = `${baseType}${typeIndex}`;
-              }
-            });
-          }
-        });
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load state from localStorage:', e);
+    const db = await getHandleDb();
+    const handle = await new Promise<FileSystemFileHandle | null>((resolve, reject) => {
+      const tx = db.transaction(HANDLE_STORE_NAME, 'readonly');
+      const store = tx.objectStore(HANDLE_STORE_NAME);
+      const req = store.get(HANDLE_KEY);
+      req.onsuccess = () => resolve((req.result as FileSystemFileHandle) || null);
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    return handle;
+  } catch (err) {
+    console.warn('Failed to load persisted project file handle:', err);
+    return null;
   }
+}
 
-  // Return default state if nothing saved
+// Load initial state from defaults only. Project data should come from an opened JSON file.
+function loadInitialState(): CMSState {
   return getDefaultState();
 }
 
@@ -179,26 +185,32 @@ function cmsReducer(state: CMSState, action: CMSAction): CMSState {
       };
 
     case 'UPDATE_COMPONENT': {
-      // Find the old component by selectedComponentId
-      const oldComponentId = state.selectedComponentId;
+      const selectedId = state.selectedComponentId;
       const newComponentId = action.payload.component.id;
-      let updatedScreens = state.screens.map((s) => {
+      const updatedScreens = state.screens.map((s) => {
         if (s.id !== action.payload.screenId) return s;
-        // If the ID changed, replace by old ID
-        const hasIdChanged = s.components.some((c) => c.id === oldComponentId && c.id !== newComponentId);
-        return {
-          ...s,
-          components: s.components.map((c) => {
-            if (hasIdChanged) {
-              return c.id === oldComponentId ? action.payload.component : c;
-            } else {
-              return c.id === newComponentId ? action.payload.component : c;
-            }
-          }),
-        };
+
+        const nextComponents = [...s.components];
+        const indexByNewId = nextComponents.findIndex((c) => c.id === newComponentId);
+
+        if (indexByNewId >= 0) {
+          nextComponents[indexByNewId] = action.payload.component;
+          return { ...s, components: nextComponents };
+        }
+
+        // Supports manual ID edits where the new ID does not exist yet.
+        if (selectedId) {
+          const indexBySelected = nextComponents.findIndex((c) => c.id === selectedId);
+          if (indexBySelected >= 0) {
+            nextComponents[indexBySelected] = action.payload.component;
+            return { ...s, components: nextComponents };
+          }
+        }
+
+        return s;
       });
-      // If the ID changed, update selectedComponentId
-      const idChanged = oldComponentId && oldComponentId !== newComponentId;
+
+      const idChanged = Boolean(selectedId && selectedId !== newComponentId);
       return {
         ...state,
         screens: updatedScreens,
@@ -305,11 +317,26 @@ const CMSContext = createContext<CMSContextValue | null>(null);
 export function CMSProvider({ children }: { readonly children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cmsReducer, initialState);
   const currentProjectFileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  const latestStateRef = useRef<CMSState>(state);
+
+  useEffect(() => {
+    void (async () => {
+      const persistedHandle = await loadPersistedProjectFileHandle();
+      if (persistedHandle) {
+        currentProjectFileHandleRef.current = persistedHandle;
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
 
   const activeScreen = state.screens.find((s) => s.id === state.activeScreenId);
   const selectedComponent = activeScreen?.components.find((c) => c.id === state.selectedComponentId);
 
   const setProject = useCallback((project: { name: string; type: 'pin_evo' | 'flex' }) => {
+    replaceAllPersistedLanguages({ en: {} }, { emit: false });
     const newProject: Project = {
       id: uuidv4(),
       name: project.name,
@@ -409,45 +436,21 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   const saveAsHtml = useCallback(async () => {
     await downloadExportZip('html');
   }, [downloadExportZip]);
-
-
-  // Helper to collect all language assets from localStorage
-  function collectAllLanguages() {
-    const langs: Record<string, any> = {};
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('project_lang_') && key.endsWith('.json')) {
-        const lang = key.replace('project_lang_', '').replace('.json', '');
-        try {
-          langs[lang] = JSON.parse(localStorage.getItem(key) || '{}');
-        } catch {
-          langs[lang] = {};
-        }
-      }
-    }
-    return langs;
-  }
-
-  // Helper to restore all language assets to localStorage
-  function restoreAllLanguages(langs: Record<string, any>) {
-    Object.entries(langs).forEach(([lang, translations]) => {
-      localStorage.setItem(`project_lang_${lang}.json`, JSON.stringify(translations));
-    });
-  }
-
   const saveProject = useCallback(async () => {
     if (!state.project) {
       alert('No project to save. Please create or open a project first.');
       return;
     }
 
-    const projectData = {
-      project: state.project,
-      screens: state.screens,
-      activeScreenId: state.activeScreenId,
-      sandboxConfig: state.sandboxConfig,
-      languages: collectAllLanguages(),
-    };
+    const buildProjectData = (sourceState: CMSState) => ({
+      project: sourceState.project,
+      screens: sourceState.screens,
+      activeScreenId: sourceState.activeScreenId,
+      sandboxConfig: sourceState.sandboxConfig,
+      languages: getAllPersistedLanguages(),
+    });
+
+    const projectData = buildProjectData(state);
 
     const json = JSON.stringify(projectData, null, 2);
     const pickerWindow = globalThis as any;
@@ -465,6 +468,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
             }],
           });
           currentProjectFileHandleRef.current = handle;
+          void savePersistedProjectFileHandle(handle);
         }
 
         if (!handle) {
@@ -492,6 +496,53 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     URL.revokeObjectURL(url);
   }, [state.project, state.screens, state.activeScreenId, state.sandboxConfig]);
 
+  useEffect(() => {
+    const onLanguagesChanged = () => {
+      const fileHandle = currentProjectFileHandleRef.current;
+      const currentState = latestStateRef.current;
+      if (!currentState.project) {
+        return;
+      }
+
+      const payload = {
+        project: currentState.project,
+        screens: currentState.screens,
+        activeScreenId: currentState.activeScreenId,
+        sandboxConfig: currentState.sandboxConfig,
+        languages: getAllPersistedLanguages(),
+      };
+
+      if (!fileHandle) {
+        return;
+      }
+
+      void (async () => {
+        try {
+          if (typeof fileHandle.queryPermission === 'function') {
+            const status = await fileHandle.queryPermission({ mode: 'readwrite' });
+            if (status !== 'granted' && typeof fileHandle.requestPermission === 'function') {
+              const requested = await fileHandle.requestPermission({ mode: 'readwrite' });
+              if (requested !== 'granted') {
+                throw new Error('File write permission was denied.');
+              }
+            }
+          }
+
+          const writable = await fileHandle.createWritable();
+          await writable.write(JSON.stringify(payload, null, 2));
+          await writable.close();
+        } catch (err) {
+          console.warn('Failed to auto-save language changes to opened project file:', err);
+        }
+      })();
+    };
+
+    window.addEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+    return () => {
+      window.removeEventListener('pinevo-languages-changed', onLanguagesChanged as EventListener);
+    };
+  }, []);
+
   const loadProject = useCallback(() => {
     const pickerWindow = globalThis as any;
 
@@ -501,21 +552,66 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
         return;
       }
 
-      // Patch: Ensure all text components with labelKey have labelMode: 'lang'
-      importedState.screens.forEach((screen: any) => {
-        if (Array.isArray(screen.components)) {
-          screen.components.forEach((component: any) => {
-            if (component.type === 'text' && component.labelKey && component.labelMode !== 'lang') {
-              component.labelMode = 'lang';
-            }
-          });
+      const usedScreenIds = new Set<string>();
+      const usedComponentIds = new Set<string>();
+
+      const toBaseDisplayId = (component: any): string => {
+        if (component?.type === 'text_input') return 'textbox';
+        if (component?.type === 'text') return 'label';
+        return typeof component?.type === 'string' && component.type.trim() ? component.type.trim() : 'component';
+      };
+
+      const normalizeDisplayId = (raw: any, fallbackBase: string, used: Set<string>): string => {
+        const candidate = typeof raw === 'string' && raw.trim() ? raw.trim() : fallbackBase;
+        let next = candidate;
+        let n = 2;
+        while (used.has(next)) {
+          next = `${candidate}_${n}`;
+          n += 1;
         }
+        used.add(next);
+        return next;
+      };
+
+      importedState.screens = importedState.screens.map((screen: any, screenIdx: number) => {
+        const nextScreen = { ...screen };
+        if (typeof nextScreen.id !== 'string' || !nextScreen.id || usedScreenIds.has(nextScreen.id)) {
+          nextScreen.id = uuidv4();
+        }
+        usedScreenIds.add(nextScreen.id);
+
+        const usedDisplayIds = new Set<string>();
+        const components = Array.isArray(nextScreen.components) ? nextScreen.components : [];
+
+        nextScreen.components = components.map((component: any, componentIdx: number) => {
+          const nextComponent = { ...component };
+
+          if (typeof nextComponent.id !== 'string' || !nextComponent.id || usedComponentIds.has(nextComponent.id)) {
+            nextComponent.id = uuidv4();
+          }
+          usedComponentIds.add(nextComponent.id);
+
+          const fallbackBase = `${toBaseDisplayId(nextComponent)}${componentIdx + 1}`;
+          nextComponent.displayId = normalizeDisplayId(nextComponent.displayId, fallbackBase, usedDisplayIds);
+
+          if (nextComponent.type === 'text' && nextComponent.labelKey && nextComponent.labelMode !== 'lang') {
+            nextComponent.labelMode = 'lang';
+          }
+
+          return nextComponent;
+        });
+
+        if (!nextScreen.name || typeof nextScreen.name !== 'string') {
+          nextScreen.name = `Screen ${screenIdx + 1}`;
+        }
+
+        return nextScreen;
       });
 
-      // Restore language assets if present
-      if (importedState.languages) {
-        restoreAllLanguages(importedState.languages);
-      }
+      const projectLanguages = (importedState.languages && typeof importedState.languages === 'object')
+        ? importedState.languages
+        : {};
+      replaceAllPersistedLanguages(projectLanguages, { emit: false });
 
       dispatch({ type: 'SET_PROJECT', payload: importedState.project });
       dispatch({ type: 'SET_SCREENS', payload: importedState.screens });
@@ -542,6 +638,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
           const importedState = projectData.state || projectData;
 
           currentProjectFileHandleRef.current = handle;
+          void savePersistedProjectFileHandle(handle);
           handleImport(importedState);
         } catch (err: any) {
           if (err?.name === 'AbortError') {
@@ -567,6 +664,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
         const importedState = projectData.state || projectData;
 
         currentProjectFileHandleRef.current = null;
+        void savePersistedProjectFileHandle(null);
         handleImport(importedState);
       } catch (err) {
         console.error('Error loading project:', err);
@@ -612,19 +710,11 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
   }, []);
 
   const clearSession = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    replaceAllPersistedLanguages({ en: {} }, { emit: false });
     currentProjectFileHandleRef.current = null;
+    void savePersistedProjectFileHandle(null);
     dispatch({ type: 'RESET_STATE' });
   }, []);
-
-  // Save state to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.warn('Failed to save state to localStorage:', e);
-    }
-  }, [state]);
 
   const contextValue = React.useMemo(() => ({
     state,
