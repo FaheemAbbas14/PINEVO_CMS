@@ -47,6 +47,17 @@ const FIELD_CONFIG = {
   text_input: [
     { key: 'labelKey', label: 'Label', type: 'langKey' },
     { key: 'placeholderKey', label: 'Placeholder', type: 'langKey' },
+    { key: 'maxLengthAction', label: 'On Max Length Action', type: 'select', options: [
+      { value: 'none', label: 'None' },
+      { value: 'goto_screen', label: 'Go to Screen' },
+      { value: 'play_audio', label: 'Play Audio' },
+      { value: 'api_call', label: 'API Call' },
+      { value: 'run_command', label: 'Run Command' },
+    ] },
+    { key: 'maxLengthGoToScreen', label: 'Go to Screen', type: 'screenSelect', dependsOn: { key: 'maxLengthAction', value: 'goto_screen' } },
+    { key: 'maxLengthAudio', label: 'Audio URL', type: 'text', dependsOn: { key: 'maxLengthAction', value: 'play_audio' } },
+    { key: 'maxLengthApiCall', label: 'API URL Trigger', type: 'text', dependsOn: { key: 'maxLengthAction', value: 'api_call' } },
+    { key: 'maxLengthCommand', label: 'Run Command', type: 'text', dependsOn: { key: 'maxLengthAction', value: 'run_command' } },
     { key: 'inputBorderStyle', label: 'Border Style', type: 'select', options: [
       { value: 'rounded', label: 'Rounded 4 Sides' },
       { value: 'underline', label: 'Underline Only' },

@@ -43,6 +43,34 @@ export default function DeviceFrame({ children }: Props) {
   const handleHardwareButtonClick = (buttonId: HardwareButtonId) => {
     // In preview mode, trigger the configured action instead of selecting the button
     if (state.previewMode) {
+      const selectedComponent = currentScreen?.components.find(c => c.id === state.selectedComponentId);
+      const selectedIsTextInput = selectedComponent?.type === 'text_input';
+      const numericInput = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
+      if (selectedIsTextInput && numericInput.includes(buttonId)) {
+        const event = new CustomEvent('hardwareButtonInput', {
+          detail: { action: 'append', value: buttonId, targetComponentId: selectedComponent.id }
+        });
+        window.dispatchEvent(event);
+        return;
+      }
+
+      if (selectedIsTextInput && buttonId === 'backspace') {
+        const event = new CustomEvent('hardwareButtonInput', {
+          detail: { action: 'backspace', targetComponentId: selectedComponent.id }
+        });
+        window.dispatchEvent(event);
+        return;
+      }
+
+      if (selectedIsTextInput && buttonId === 'enter') {
+        const event = new CustomEvent('hardwareButtonInput', {
+          detail: { action: 'clear', targetComponentId: selectedComponent.id }
+        });
+        window.dispatchEvent(event);
+        return;
+      }
+
       const btnConfig = hardwareButtons[buttonId];
 
       if (btnConfig?.goToScreen) {

@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function TextInputItem({ component }: Props) {
-    const { selectComponent, state } = useCMS();
+    const { selectComponent, setActiveScreen, state } = useCMS();
     const isSelected = state.selectedComponentId === component.id;
     const itemRef = useRef<HTMLDivElement>(null);
     const [displayText, setDisplayText] = useState('');
@@ -22,6 +22,7 @@ export default function TextInputItem({ component }: Props) {
     const isPreviewMode = state.previewMode;
     const inputType = component.inputType || 'text';
     const maxLength = Math.max(0, Number(component.maxLength || 0));
+    const maxLengthActionTriggeredRef = useRef(false);
 
     const sanitizeByType = (value: string): string => {
         if (inputType === 'number') {
@@ -43,6 +44,62 @@ export default function TextInputItem({ component }: Props) {
         setDisplayText(prev => normalizeInputValue(prev));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [inputType, maxLength]);
+
+    useEffect(() => {
+        if (!isPreviewMode || maxLength <= 0) {
+            maxLengthActionTriggeredRef.current = false;
+            return;
+        }
+
+        const reachedMaxLength = displayText.length >= maxLength;
+        if (!reachedMaxLength) {
+            maxLengthActionTriggeredRef.current = false;
+            return;
+        }
+
+        if (maxLengthActionTriggeredRef.current) {
+            return;
+        }
+
+        maxLengthActionTriggeredRef.current = true;
+
+        const action = component.maxLengthAction || 'none';
+        if (action === 'goto_screen' && component.maxLengthGoToScreen) {
+            setActiveScreen(component.maxLengthGoToScreen);
+            return;
+        }
+
+        if (action === 'play_audio') {
+            const audioSrc = component.maxLengthAudio;
+            if (audioSrc) {
+                const audio = new Audio(audioSrc);
+                audio.play().catch(err => console.error('Error playing max-length audio:', err));
+            }
+            return;
+        }
+
+        if (action === 'api_call' && component.maxLengthApiCall) {
+            fetch(component.maxLengthApiCall, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+            }).catch(err => console.error('Max-length API call error:', err));
+            return;
+        }
+
+        if (action === 'run_command' && component.maxLengthCommand) {
+            console.log('Max-length command:', component.maxLengthCommand);
+        }
+    }, [
+        component.maxLengthAction,
+        component.maxLengthApiCall,
+        component.maxLengthAudio,
+        component.maxLengthCommand,
+        component.maxLengthGoToScreen,
+        displayText,
+        isPreviewMode,
+        maxLength,
+        setActiveScreen,
+    ]);
 
     // In preview mode, we need to listen for hardware button input
     useEffect(() => {
@@ -78,6 +135,11 @@ export default function TextInputItem({ component }: Props) {
     useEffect(() => {
         const handleHardwareInput = (e: CustomEvent) => {
             if (!isPreviewMode) return;
+
+            const targetComponentId = e.detail?.targetComponentId as string | undefined;
+            if (targetComponentId && targetComponentId !== component.id) {
+                return;
+            }
 
             const activeScreen = state.screens.find(s => s.id === state.activeScreenId);
             const hasThisComponent = activeScreen?.components.some(c => c.id === component.id);

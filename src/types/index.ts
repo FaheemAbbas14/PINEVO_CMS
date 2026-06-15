@@ -73,6 +73,13 @@ export interface CanvasComponent {
 
   // Audio Component Specifics
   audioUrl?: string;     // Audio file URL
+
+  // Text Input max-length action settings
+  maxLengthAction?: 'none' | 'goto_screen' | 'play_audio' | 'api_call' | 'run_command';
+  maxLengthGoToScreen?: string;
+  maxLengthApiCall?: string;
+  maxLengthCommand?: string;
+  maxLengthAudio?: string;
 }
 
 // Hardware button configuration type

@@ -44,7 +44,10 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
   { value: 'start_scan', label: 'Start Scan', description: 'Start scan', type: 'device' },
   { value: 'stop_scan', label: 'Stop Scan', description: 'Stop scan', type: 'device' },
   { value: 'connect_using_uid', label: 'Connect Using UID', description: 'Connect using UID', type: 'device' },
-  { value: 'is_connected', label: 'Is Connected', description: 'Check if device is connected', type: 'device' },
+  { value: 'door_opened', label: 'Door Opened', description: 'Confirmed door opened', type: 'device' },
+  { value: 'door_not_opened', label: 'Door Not Opened', description: 'Confirmed door not opened', type: 'device' },
+   { value: 'reopen_door', label: 'Reopen Door', description: 'Reopen the door', type: 'device' },
+    { value: 'change_door', label: 'Change Door', description: 'Change door ', type: 'device' },
 ];
 
 // ============================================================================
