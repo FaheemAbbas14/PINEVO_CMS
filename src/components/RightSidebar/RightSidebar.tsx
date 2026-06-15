@@ -688,16 +688,6 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 <option value="wrap_content">Wrap Content</option>
               </select>
             </div>
-            <div className="property-field">
-              <label>Visibility</label>
-              <select
-                value={String(localValues.visible ?? true)}
-                onChange={e => handleChange('visible', e.target.value === 'true')}
-              >
-                <option value="true">Show</option>
-                <option value="false">Hide</option>
-              </select>
-            </div>
             {(localValues.heightMode || 'fixed') === 'fixed' && (
               <div className="property-field">
                 <label>Height</label>
@@ -708,6 +698,16 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                 />
               </div>
             )}
+            <div className="property-field">
+              <label>Visibility</label>
+              <select
+                value={String(localValues.visible ?? true)}
+                onChange={e => handleChange('visible', e.target.value === 'true')}
+              >
+                <option value="true">Show</option>
+                <option value="false">Hide</option>
+              </select>
+            </div>
           </div>
         </section>
 

@@ -674,9 +674,13 @@ function buildFirmwareJsonComponent(
       type: 'label',
       x: component.x,
       y: component.y,
+      width: component.width,
+      height: component.height,
       font: fontKey,
       color: component.color || '#1a1a2e',
       text: component.text || '',
+      text_align: component.textAlign || 'left',
+      visible: component.visible !== false,
       labelKey: component.labelKey,
       labelMode: component.labelMode,
     };
@@ -696,6 +700,9 @@ function buildFirmwareJsonComponent(
       bg_color: component.bgColor || '#4f46e5',
       text_color: component.color || '#ffffff',
       font: fontKey,
+      border_radius: Number(component.borderRadius || 0),
+      text_align: component.textAlign || 'center',
+      visible: component.visible !== false,
       tag: normalizedKey,
       key: normalizedKey,
       label: component.text || 'Button',
@@ -721,6 +728,20 @@ function buildFirmwareJsonComponent(
     };
   }
 
+  if (component.type === 'view') {
+    return {
+      ...base,
+      type: 'view',
+      x: component.x,
+      y: component.y,
+      width: component.width,
+      height: component.height,
+      bg_color: component.bgColor || '#e5e7eb',
+      border_radius: Number(component.borderRadius || 0),
+      visible: component.visible !== false,
+    };
+  }
+
   if (component.type === 'text_input') {
     return {
       ...base,
@@ -736,6 +757,8 @@ function buildFirmwareJsonComponent(
       text: component.text || '',
       placeholder: component.placeholder || '',
       border_radius: component.borderRadius || 8,
+      text_align: component.textAlign || 'center',
+      visible: component.visible !== false,
       inputBorderStyle: component.inputBorderStyle || 'rounded',
       labelKey: component.labelKey,
       labelMode: component.labelMode,
@@ -743,6 +766,11 @@ function buildFirmwareJsonComponent(
       placeholderMode: component.placeholderMode,
       inputType: component.inputType || 'text',
       maxLength: Number(component.maxLength || 0),
+      maxLengthAction: component.maxLengthAction || 'none',
+      maxLengthGoToScreen: component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : '',
+      maxLengthApiCall: component.maxLengthApiCall || '',
+      maxLengthCommand: component.maxLengthCommand || '',
+      maxLengthAudio: resolveAssetReference(component.maxLengthAudio, embeddedAssetRefs),
     };
   }
 
@@ -756,6 +784,7 @@ function buildFirmwareJsonComponent(
       height: component.height,
       src: resolveAssetReference(component.audioUrl, embeddedAssetRefs),
       label: component.text || 'Audio',
+      visible: component.visible !== false,
       autoplay: false,
       loop: false,
     };
@@ -773,6 +802,7 @@ function buildFirmwareJsonComponent(
       url: component.apiUrl || '',
       headers: component.headers || '',
       body: component.requestBody || '',
+      visible: component.visible !== false,
       trigger: 'tap',
     };
   }
@@ -786,6 +816,7 @@ function buildFirmwareJsonComponent(
       width: component.width,
       height: component.height,
       value: component.command || '',
+      visible: component.visible !== false,
       trigger: 'tap',
     };
   }
@@ -821,8 +852,12 @@ function renderFirmwareComponent(
       idAttr,
       ['x', component.x],
       ['y', component.y],
+      ['width', component.width],
+      ['height', component.height],
       ['font', fontKey],
       ['color', component.color || '#1a1a2e'],
+      ['text_align', component.textAlign || 'left'],
+      ['visible', component.visible !== false],
       ['text', hasLabelKey ? '' : (component.text || '')],
       ['data-label-key', component.labelKey],
       // 'data-label-mode' removed
@@ -841,7 +876,10 @@ function renderFirmwareComponent(
       ['height', component.height],
       ['bg_color', component.bgColor || '#4f46e5'],
       ['text_color', component.color || '#ffffff'],
+      ['border_radius', Number(component.borderRadius || 0)],
       ['font', fontKey],
+      ['text_align', component.textAlign || 'center'],
+      ['visible', component.visible !== false],
       ['tag', normalizedKey],
       ['key', normalizedKey],
       ['label', component.text || 'Button'],
@@ -861,8 +899,22 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['visible', component.visible !== false],
       ['src', resolveAssetReference(component.imageUrl, embeddedAssetRefs)],
       ['fit', 'cover'],
+    ]);
+  }
+
+  if (component.type === 'view') {
+    return buildTag('view', [
+      idAttr,
+      ['x', component.x],
+      ['y', component.y],
+      ['width', component.width],
+      ['height', component.height],
+      ['bg_color', component.bgColor || '#e5e7eb'],
+      ['border_radius', Number(component.borderRadius || 0)],
+      ['visible', component.visible !== false],
     ]);
   }
 
@@ -878,6 +930,8 @@ function renderFirmwareComponent(
       ['border_color', component.borderColor || '#e5e7eb'],
       ['text_color', component.color || '#1a1a2e'],
       ['font', fontKey],
+      ['text_align', component.textAlign || 'center'],
+      ['visible', component.visible !== false],
       ['text', hasLabelKey ? '' : (component.text || '')],
       ['placeholder', component.placeholder || ''],
       ['border_radius', component.borderRadius || 8],
@@ -888,6 +942,11 @@ function renderFirmwareComponent(
       ['data-placeholder-mode', component.placeholderMode],
       ['data-input-type', component.inputType || 'text'],
       ['data-max-length', Number(component.maxLength || 0)],
+      ['data-max-length-action', component.maxLengthAction || 'none'],
+      ['data-max-length-target', component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : ''],
+      ['data-max-length-api-call', component.maxLengthApiCall || ''],
+      ['data-max-length-command', component.maxLengthCommand || ''],
+      ['data-max-length-audio-src', resolveAssetReference(component.maxLengthAudio, embeddedAssetRefs)],
     ]);
   }
 
@@ -898,6 +957,7 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['visible', component.visible !== false],
       ['src', resolveAssetReference(component.audioUrl, embeddedAssetRefs)],
       ['label', component.text || 'Audio'],
       ['autoplay', false],
@@ -912,6 +972,7 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['visible', component.visible !== false],
       ['method', component.httpMethod || 'GET'],
       ['url', component.apiUrl || ''],
       ['headers', component.headers || ''],
@@ -927,6 +988,7 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['visible', component.visible !== false],
       ['value', component.command || ''],
       ['trigger', 'tap'],
     ]);
