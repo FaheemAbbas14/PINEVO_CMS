@@ -88,6 +88,8 @@ export default function TextItem({ component }: Props) {
         lineHeight: 1.25,
         paddingLeft: 8,
         paddingRight: 8,
+        border: `${Math.max(0, Number(component.borderWidth ?? 0))}px solid ${component.borderColor || '#000000'}`,
+        borderRadius: `${component.borderRadius ?? 0}px`,
       }}
       onClick={(e) => {
         e.stopPropagation();

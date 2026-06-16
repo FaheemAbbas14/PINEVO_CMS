@@ -42,6 +42,9 @@ const FIELD_CONFIG = {
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
     // Font Weight removed
   ],
   text_input: [
@@ -75,6 +78,7 @@ const FIELD_CONFIG = {
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1 },
     { key: 'borderColor', label: 'Border Color', type: 'color', default: '#e5e7eb' },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#ffffff' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
@@ -110,17 +114,27 @@ const FIELD_CONFIG = {
     { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#4f46e5' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
     { key: 'borderRadius', label: 'Radius', type: 'number', default: 0 },
   ],
   image: [
     { key: 'imageUrl', label: 'Image URL', type: 'text' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
   ],
   view: [
     { key: 'bgColor', label: 'Background', type: 'color', default: '#e5e7eb' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
   ],
   audio: [
     { key: 'audioUrl', label: 'Audio URL', type: 'text' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 5 },
   ],
   api: [
     { key: 'apiUrl', label: 'API URL', type: 'text' },
@@ -132,9 +146,15 @@ const FIELD_CONFIG = {
     ] },
     { key: 'headers', label: 'Headers (JSON)', type: 'textarea' },
     { key: 'requestBody', label: 'Request Body (JSON)', type: 'textarea' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#bae6fd' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
   ],
   command: [
     { key: 'command', label: 'Custom Command', type: 'textarea' },
+    { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
+    { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
+    { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 8 },
   ],
 };
 // import { LanguageSection } from './LanguageSection';
@@ -180,22 +200,90 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   const [showToast, setShowToast] = useState(false);
   // FIX: Always call displayIdError useState before any conditional returns
   const [displayIdError, setDisplayIdError] = useState<string | null>(null);
+  const [integerDrafts, setIntegerDrafts] = useState<Record<string, string>>({});
+
+  const coerceIntegerValue = (raw: string, fallback = 0) => {
+    const normalized = raw.trim();
+    if (!normalized || normalized === '-') {
+      return fallback;
+    }
+    const parsed = Number.parseInt(normalized, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
+  const sanitizeIntegerDraft = (raw: string) => {
+    if (!raw) {
+      return '';
+    }
+    const hasNegative = raw.trim().startsWith('-');
+    const digits = raw.replaceAll(/[^\d]/g, '');
+    return hasNegative ? `-${digits}` : digits;
+  };
+
+  const setIntegerFieldDraft = (key: string, raw: string) => {
+    const sanitized = sanitizeIntegerDraft(raw);
+    setIntegerDrafts((prev) => ({ ...prev, [key]: sanitized }));
+  };
+
+  const commitIntegerFieldDraft = (key: string, fallback = 0, min?: number) => {
+    if (!(key in integerDrafts)) {
+      return;
+    }
+    let value = coerceIntegerValue(integerDrafts[key], fallback);
+    if (typeof min === 'number') {
+      value = Math.max(min, value);
+    }
+    handleChange(key, value);
+    setIntegerDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const getIntegerInputValue = (key: string, fallback = 0) => {
+    if (key in integerDrafts) {
+      return integerDrafts[key];
+    }
+    const value = localValues?.[key];
+    if (typeof value === 'number') {
+      return String(value);
+    }
+    return String(fallback);
+  };
+
+  const applyAllIntegerDrafts = (values: CanvasComponent) => {
+    if (Object.keys(integerDrafts).length === 0) {
+      return values;
+    }
+
+    const nextValues = { ...values };
+    Object.entries(integerDrafts).forEach(([key, draft]) => {
+      nextValues[key] = coerceIntegerValue(draft, 0);
+    });
+    return nextValues;
+  };
 
   // Expose a commit handler to parent (TopBar)
   useImperativeHandle(ref, () => ({
     commitEdits: () => {
+      const finalizedValues = applyAllIntegerDrafts(localValues);
+      if (finalizedValues !== localValues) {
+        setLocalValues(finalizedValues);
+        setIntegerDrafts({});
+      }
       if (
-        typeof localValues.id === 'string' && localValues.id &&
-        typeof localValues.type === 'string' && localValues.type &&
-        typeof localValues.x === 'number' &&
-        typeof localValues.y === 'number' &&
-        typeof localValues.width === 'number' &&
-        typeof localValues.height === 'number'
+        typeof finalizedValues.id === 'string' && finalizedValues.id &&
+        typeof finalizedValues.type === 'string' && finalizedValues.type &&
+        typeof finalizedValues.x === 'number' &&
+        typeof finalizedValues.y === 'number' &&
+        typeof finalizedValues.width === 'number' &&
+        typeof finalizedValues.height === 'number'
       ) {
-        updateComponent(localValues as import('../../types').CanvasComponent);
+        updateComponent(finalizedValues as import('../../types').CanvasComponent);
       }
     }
-  }), [localValues]);
+  }), [localValues, integerDrafts]);
 
   // Language management state
 
@@ -224,7 +312,10 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   const [allLangKeys, setAllLangKeys] = useState<string[]>(getAllLangKeys(getPersistedLocales()));
 
   useEffect(() => {
-    if (selectedComponent) setLocalValues(selectedComponent);
+    if (selectedComponent) {
+      setLocalValues(selectedComponent);
+      setIntegerDrafts({});
+    }
   }, [selectedComponent]);
 
 
@@ -237,7 +328,10 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
 
   // When language changes, update localValues to force re-render of language key dropdowns and preview text
   useEffect(() => {
-    if (selectedComponent) setLocalValues(selectedComponent);
+    if (selectedComponent) {
+      setLocalValues(selectedComponent);
+      setIntegerDrafts({});
+    }
   }, [locale, selectedComponent]);
 
   const readFileAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
@@ -650,9 +744,12 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
               <div className="property-field" key={key}>
                 <label>{key.toUpperCase()}</label>
                 <input
-                  type="number"
-                  value={localValues[key]}
-                  onChange={e => handleChange(key, Number.parseInt(e.target.value) || 0)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="-?[0-9]*"
+                  value={getIntegerInputValue(key, 0)}
+                  onChange={e => setIntegerFieldDraft(key, e.target.value)}
+                  onBlur={() => commitIntegerFieldDraft(key, 0)}
                 />
               </div>
             ))}
@@ -671,9 +768,12 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
               <div className="property-field">
                 <label>Width</label>
                 <input
-                  type="number"
-                  value={localValues.width}
-                  onChange={e => handleChange('width', Number.parseInt(e.target.value) || 1)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={getIntegerInputValue('width', 0)}
+                  onChange={e => setIntegerFieldDraft('width', e.target.value)}
+                  onBlur={() => commitIntegerFieldDraft('width', 0)}
                 />
               </div>
             )}
@@ -692,9 +792,12 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
               <div className="property-field">
                 <label>Height</label>
                 <input
-                  type="number"
-                  value={localValues.height}
-                  onChange={e => handleChange('height', Number.parseInt(e.target.value) || 1)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={getIntegerInputValue('height', 0)}
+                  onChange={e => setIntegerFieldDraft('height', e.target.value)}
+                  onBlur={() => commitIntegerFieldDraft('height', 0)}
                 />
               </div>
             )}
@@ -843,9 +946,12 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                     <div className="property-field" key={field.key}>
                       <label>{field.label}</label>
                       <input
-                        type="number"
-                        value={localValues[field.key] || ('default' in field ? field.default : 0)}
-                        onChange={e => handleChange(field.key, Number.parseInt(e.target.value) || 0)}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="-?[0-9]*"
+                        value={getIntegerInputValue(field.key, ('default' in field ? field.default : 0) as number)}
+                        onChange={e => setIntegerFieldDraft(field.key, e.target.value)}
+                        onBlur={() => commitIntegerFieldDraft(field.key, 0)}
                       />
                     </div>
                   );

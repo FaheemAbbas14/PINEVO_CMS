@@ -45,6 +45,7 @@ function getDefaultComponentProps(type: string): Partial<CanvasComponent> {
         text: 'Input',
         fontSize,
         color: '#1a1a2e',
+        borderWidth: 1,
         borderColor: '#e5e7eb',
         bgColor: '#ffffff',
         borderRadius: 8,
@@ -68,21 +69,23 @@ function getDefaultComponentProps(type: string): Partial<CanvasComponent> {
         fontSize,
         color: '#ffffff',
         bgColor: '#4f46e5',
-        borderRadius: 8,
+        borderWidth: 0,
+        borderColor: '#000000',
+        borderRadius: 0,
         textAlign: 'center',
         function: 'none',
       };
     }
     case 'image':
-      return { width: 120, height: 90, widthMode: 'wrap_content', heightMode: 'wrap_content', imageUrl: '' };
+      return { width: 120, height: 90, widthMode: 'wrap_content', heightMode: 'wrap_content', imageUrl: '', borderWidth: 0, borderColor: '#000000', borderRadius: 0 };
     case 'view':
-      return { width: 180, height: 120, widthMode: 'wrap_content', heightMode: 'wrap_content', visible: true, bgColor: '#e5e7eb', borderRadius: 0 };
+      return { width: 180, height: 120, widthMode: 'wrap_content', heightMode: 'wrap_content', visible: true, bgColor: '#e5e7eb', borderWidth: 0, borderColor: '#000000', borderRadius: 0 };
     case 'audio':
-      return { width: 200, height: 60, widthMode: 'wrap_content', heightMode: 'wrap_content', audioUrl: '' };
+      return { width: 200, height: 60, widthMode: 'wrap_content', heightMode: 'wrap_content', audioUrl: '', borderWidth: 0, borderColor: '#000000', borderRadius: 5 };
     case 'api':
-      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', apiUrl: 'https://api.example.com', httpMethod: 'GET' };
+      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', apiUrl: 'https://api.example.com', httpMethod: 'GET', borderWidth: 1, borderColor: '#bae6fd', borderRadius: 8 };
     case 'command':
-      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', command: 'echo "hello"' };
+      return { width: 140, height: 50, widthMode: 'wrap_content', heightMode: 'wrap_content', command: 'echo "hello"', borderWidth: 0, borderColor: '#000000', borderRadius: 8 };
     default:
       return {};
   }

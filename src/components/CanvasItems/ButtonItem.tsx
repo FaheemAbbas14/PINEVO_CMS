@@ -117,7 +117,8 @@ export default function ButtonItem({ component }: Props) {
           backgroundColor: component.bgColor,
           color: component.color,
           fontSize: `${fontSize}px`,
-          borderRadius: `${component.borderRadius}px`,
+          borderRadius: `${component.borderRadius ?? 0}px`,
+          border: `${Math.max(0, Number(component.borderWidth ?? 0))}px solid ${component.borderColor || '#000000'}`,
           width: '100%',
           height: '100%',
           whiteSpace: 'normal',
@@ -126,7 +127,6 @@ export default function ButtonItem({ component }: Props) {
           lineHeight: 1.25,
           padding: '0 8px',
           textAlign,
-          border: 'none',
           cursor: 'pointer',
         }}
       >

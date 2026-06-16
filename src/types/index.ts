@@ -50,6 +50,8 @@ export interface CanvasComponent {
   fontSize?: number;
   color?: string;       // text color
   bgColor?: string;     // background color (button/image bg)
+  borderColor?: string;
+  borderWidth?: number;
   imageUrl?: string;    // image src
   fontWeight?: string;
   /** Horizontal alignment for text-bearing components */

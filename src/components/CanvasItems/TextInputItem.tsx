@@ -205,6 +205,7 @@ export default function TextInputItem({ component }: Props) {
     const textAlign = component.textAlign || 'center';
     const borderStyle = component.inputBorderStyle || 'rounded';
     const borderColor = component.borderColor || '#e5e7eb';
+    const borderWidth = Math.max(0, Number(component.borderWidth ?? 1));
     const fontSize = component.fontSize || 14;
     const fontFamily = component.fontFamily ? `'${component.fontFamily}', sans-serif` : 'sans-serif';
     const fontSpec = `${fontSize}px ${fontFamily}`;
@@ -221,13 +222,13 @@ export default function TextInputItem({ component }: Props) {
     const borderStyles = borderStyle === 'underline'
         ? {
             border: 'none',
-            borderBottom: `1px solid ${borderColor}`,
+            borderBottom: `${borderWidth || 1}px solid ${borderColor}`,
             borderRadius: '0px',
         }
         : {
-            border: `1px solid ${borderColor}`,
-            borderBottom: `1px solid ${borderColor}`,
-            borderRadius: `${component.borderRadius || 8}px`,
+            border: `${borderWidth}px solid ${borderColor}`,
+            borderBottom: `${borderWidth}px solid ${borderColor}`,
+            borderRadius: `${component.borderRadius ?? 8}px`,
         };
 
     return (

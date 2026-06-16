@@ -53,6 +53,9 @@ export default function ImageItem({ component }: Props) {
         top: component.y,
         width: size.width,
         height: size.height,
+        border: `${Math.max(0, Number(component.borderWidth ?? 0))}px solid ${component.borderColor || '#000000'}`,
+        borderRadius: `${component.borderRadius ?? 0}px`,
+        overflow: 'hidden',
       }}
       onClick={(e) => {
         e.stopPropagation();

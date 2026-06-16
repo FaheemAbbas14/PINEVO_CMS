@@ -54,6 +54,7 @@ export default function ViewItem({ component }: Props) {
         width: size.width,
         height: size.height,
         background: component.bgColor || '#e5e7eb',
+        border: `${Math.max(0, Number(component.borderWidth ?? 0))}px solid ${component.borderColor || '#000000'}`,
         borderRadius: `${component.borderRadius ?? 0}px`,
       }}
       onClick={(e) => {
