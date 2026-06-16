@@ -630,6 +630,7 @@ export default function BLEMdal({
         let ackChannel: Awaited<ReturnType<typeof setupAckNotifications>> | null = null;
         let ackChannelAvailable = false;
         let chunkProtocolAckEnabled = false;
+        const protocolAckEnabled = FEATURE_FLAGS.enableProtocolAck;
 
         try {
             const gatt = connectedDevice.nativeDevice.gatt;
@@ -655,9 +656,13 @@ export default function BLEMdal({
             const mtuUsedForChunking = Number.isFinite(reportedMtu) && reportedMtu > 0
                 ? reportedMtu
                 : fallbackMtu;
+            const maxPacketBytes = Math.max(
+                64,
+                mtuUsedForChunking - BLE_CONFIG.limits.mtuReservedBytes
+            );
             addLog(
                 'info',
-                `Chunking params: mtu=${mtuUsedForChunking}, reserved=${BLE_CONFIG.limits.mtuReservedBytes}, chunk_size=${configuredChunkSize}`
+                `Chunking params: mtu=${mtuUsedForChunking}, reserved=${BLE_CONFIG.limits.mtuReservedBytes}, packet_budget=${maxPacketBytes}, requested_chunk_size=${configuredChunkSize}`
             );
 
             const service = await server.getPrimaryService(BLE_CONFIG.cms.SERVICE);
@@ -692,10 +697,15 @@ export default function BLEMdal({
                 addLog('warn', `Protocol ACK unavailable (${ackSetupError?.message || 'unknown'}), using GATT sequential mode`);
             }
 
+            if (!protocolAckEnabled) {
+                addLog('info', 'zip_chunk ACK disabled by config; start/commit still use ACK channel when available.');
+            }
+
             addLog('info', `Preparing ${deployType.toUpperCase()} deployment bundle from current CMS state...`);
-            const chunkAckEnabled = FEATURE_FLAGS.enableProtocolAck;
+            const chunkAckEnabled = protocolAckEnabled;
             const bundle = await generateBLEDeploymentBundle(state, deployType, configuredChunkSize, {
                 ackEnabled: ackChannelAvailable && chunkAckEnabled,
+                maxPacketBytes,
             });
             const packets = createBLEZipDeploymentPackets(bundle);
             chunkProtocolAckEnabled = Boolean(packets.start.protocolAckEnabled);

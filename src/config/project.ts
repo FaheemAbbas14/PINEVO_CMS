@@ -20,7 +20,7 @@ export const BLE_CONFIG = {
     // Feature flag: enable protocol-level ACK waiting for zip_* packets.
     // When true, the modal waits for zip_start_ack, zip_chunk_ack, zip_commit_ack.
     // When false, packets are sent without waiting for ACK (faster but less reliable).
-    waitForAckOnChunks: false,
+    waitForAckOnChunks: true,
 
     // UUIDs for the CMS zip deployment flow
     cms: {
@@ -49,10 +49,10 @@ export const BLE_CONFIG = {
         noAckChunkWriteRetryCount: 3,
         // When true, deployment stops immediately on the first chunk write error in no-ACK mode.
         // Keep false to allow retries using noAckChunkWriteRetryBackoffMs.
-        abortOnAnyChunkWriteError: true,
+        abortOnAnyChunkWriteError: false,
         // Backoff schedule (ms) for no-ACK chunk write retries.
         // The first value is also used as the normal inter-chunk pacing delay.
-        noAckChunkWriteRetryBackoffMs: [30, 50, 80],
+        noAckChunkWriteRetryBackoffMs: [80, 150, 250],
         // Delay before closing the deployment dialog after completion.
         deployDialogCloseDelayMs: 250,
         // Default chunk delay used by the legacy BLE deployment service.
@@ -62,12 +62,34 @@ export const BLE_CONFIG = {
     // Payload sizing and transport limits
     limits: {
         // JSON packet payload size used by the modal deploy flow.
-        modalPacketChunkSize: 120,
+        modalPacketChunkSize: 244,
         // Fallback MTU when the browser/device does not report one.
         defaultMtu: 20,
         // Bytes reserved for JSON/protocol overhead when deriving chunk size.
         mtuReservedBytes: 20,
     },
+} as const;
+
+const DEVICE_CANVAS_DIMENSIONS = {
+    pinEvo: {
+        width: 380,
+        height: 253,
+    },
+    flex: {
+        width: 480,
+        height: 800,
+    },
+} as const;
+
+const PNG_UPLOAD_LIMITS = {
+    maxWidth: Math.max(
+        DEVICE_CANVAS_DIMENSIONS.pinEvo.width,
+        DEVICE_CANVAS_DIMENSIONS.flex.width
+    ),
+    maxHeight: Math.max(
+        DEVICE_CANVAS_DIMENSIONS.pinEvo.height,
+        DEVICE_CANVAS_DIMENSIONS.flex.height
+    ),
 } as const;
 
 // ============================================================================
@@ -77,10 +99,13 @@ export const BLE_CONFIG = {
 export const EXPORT_CONFIG = {
             // Control whether fonts are included in export/deployment bundles
             includeFontsInExport: false,
+    // Control whether embedded image/audio assets are included in export/deployment zip bundles.
+    // When false, asset data URLs in component properties are replaced with empty paths in exports.
+    includeAssetsInExport: false,
         // PNG upload constraints for image assets
         pngUpload: {
-            maxWidth: 480, // update as needed
-            maxHeight: 320, // update as needed
+            maxWidth: PNG_UPLOAD_LIMITS.maxWidth,
+            maxHeight: PNG_UPLOAD_LIMITS.maxHeight,
             maxFileSize: 100 * 1024, // 100 KB, update as needed
             allowedFormats: ['png', 'jpeg', 'jpg', 'gif', 'bmp', 'webp'],
         },
@@ -115,16 +140,7 @@ export const EXPORT_CONFIG = {
 
 export const CANVAS_CONFIG = {
     // Hardware canvas dimensions by device profile.
-    dimensions: {
-        pinEvo: {
-            width: 380,
-            height: 253,
-        },
-        flex: {
-            width: 480,
-            height: 800,
-        },
-    },
+    dimensions: DEVICE_CANVAS_DIMENSIONS,
     // Default zoom/scale level on app load.
     defaultZoomLevel: 1,
     // Zoom increment on ctrl+scroll.
@@ -169,7 +185,7 @@ export const FEATURE_FLAGS = {
     // Enable BLE deployment workflow.
     enableBleDeployment: true,
     // Enable protocol-level ACK waiting.
-    enableProtocolAck: false,
+    enableProtocolAck: true,
     // Enable HTML UI export/deployment format.
     enableHtmlUiFormat: true,
     // Enable JSON UI export/deployment format.

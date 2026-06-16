@@ -471,40 +471,51 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
     return true;
   }, []);
 
-  useEffect(() => {
-    void (async () => {
-      const persistedHandle = await loadPersistedProjectFileHandle();
-      if (!persistedHandle) {
-        return;
-      }
+  const tryRestorePersistedProjectHandle = useCallback(async (interactive: boolean): Promise<boolean> => {
+    const persistedHandle = await loadPersistedProjectFileHandle();
+    if (!persistedHandle) {
+      return false;
+    }
 
-      currentProjectFileHandleRef.current = persistedHandle;
+    currentProjectFileHandleRef.current = persistedHandle;
 
-      try {
-        if (typeof persistedHandle.queryPermission === 'function') {
-          const status = await persistedHandle.queryPermission({ mode: 'read' });
-          if (status !== 'granted' && typeof persistedHandle.requestPermission === 'function') {
-            const requested = await persistedHandle.requestPermission({ mode: 'read' });
-            if (requested !== 'granted') {
-              return;
-            }
+    try {
+      const handleAny = persistedHandle as any;
+      if (typeof handleAny.queryPermission === 'function') {
+        let status = await handleAny.queryPermission({ mode: 'read' });
+        if (status !== 'granted') {
+          if (interactive && typeof handleAny.requestPermission === 'function') {
+            status = await handleAny.requestPermission({ mode: 'read' });
+          }
+          if (status !== 'granted') {
+            return false;
           }
         }
-
-        const file = await persistedHandle.getFile();
-        const text = await file.text();
-        const projectData = JSON.parse(text);
-        const importedState = projectData.state || projectData;
-        const ok = importProjectState(importedState);
-        if (!ok) {
-          currentProjectFileHandleRef.current = null;
-          void savePersistedProjectFileHandle(null);
-        }
-      } catch (err) {
-        console.warn('Failed to auto-restore persisted project handle:', err);
       }
-    })();
+
+      const file = await persistedHandle.getFile();
+      const text = await file.text();
+      const projectData = JSON.parse(text);
+      const importedState = projectData.state || projectData;
+      const ok = importProjectState(importedState);
+      if (!ok) {
+        currentProjectFileHandleRef.current = null;
+        void savePersistedProjectFileHandle(null);
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      console.warn('Failed to restore persisted project handle:', err);
+      return false;
+    }
   }, [importProjectState]);
+
+  useEffect(() => {
+    void (async () => {
+      void tryRestorePersistedProjectHandle(false);
+    })();
+  }, [tryRestorePersistedProjectHandle]);
 
   const setProject = useCallback((project: { name: string; type: 'pin_evo' | 'flex' }) => {
     replaceAllPersistedLanguages({ en: {} }, { emit: false });
@@ -734,13 +745,12 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
 
       void (async () => {
         try {
-          if (typeof fileHandle.queryPermission === 'function') {
-            const status = await fileHandle.queryPermission({ mode: 'readwrite' });
-            if (status !== 'granted' && typeof fileHandle.requestPermission === 'function') {
-              const requested = await fileHandle.requestPermission({ mode: 'readwrite' });
-              if (requested !== 'granted') {
-                throw new Error('File write permission was denied.');
-              }
+          const fileHandleAny = fileHandle as any;
+          if (typeof fileHandleAny.queryPermission === 'function') {
+            const status = await fileHandleAny.queryPermission({ mode: 'readwrite' });
+            if (status !== 'granted') {
+              // Avoid SecurityError from non-user-activation contexts.
+              return;
             }
           }
 

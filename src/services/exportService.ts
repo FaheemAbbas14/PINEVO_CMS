@@ -128,6 +128,7 @@ export interface UIDeploymentBundle {
 
 interface BLEDeploymentOptions {
   ackEnabled?: boolean;
+  maxPacketBytes?: number;
 }
 
 export interface BLEZipStartPacket {
@@ -676,6 +677,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       font: fontKey,
       color: component.color || '#1a1a2e',
       text: component.text || '',
@@ -697,6 +700,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       bg_color: component.bgColor || '#4f46e5',
       text_color: component.color || '#ffffff',
       font: fontKey,
@@ -723,6 +728,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       src: resolveAssetReference(component.imageUrl, embeddedAssetRefs),
       fit: 'cover',
     };
@@ -736,6 +743,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       bg_color: component.bgColor || '#e5e7eb',
       border_radius: Number(component.borderRadius || 0),
       visible: component.visible !== false,
@@ -750,6 +759,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       bg_color: component.bgColor || '#ffffff',
       border_color: component.borderColor || '#e5e7eb',
       text_color: component.color || '#1a1a2e',
@@ -782,6 +793,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       src: resolveAssetReference(component.audioUrl, embeddedAssetRefs),
       label: component.text || 'Audio',
       visible: component.visible !== false,
@@ -798,6 +811,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       method: component.httpMethod || 'GET',
       url: component.apiUrl || '',
       headers: component.headers || '',
@@ -815,6 +830,8 @@ function buildFirmwareJsonComponent(
       y: component.y,
       width: component.width,
       height: component.height,
+      width_mode: component.widthMode || 'fixed',
+      height_mode: component.heightMode || 'fixed',
       value: component.command || '',
       visible: component.visible !== false,
       trigger: 'tap',
@@ -854,6 +871,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['font', fontKey],
       ['color', component.color || '#1a1a2e'],
       ['text_align', component.textAlign || 'left'],
@@ -874,6 +893,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['bg_color', component.bgColor || '#4f46e5'],
       ['text_color', component.color || '#ffffff'],
       ['border_radius', Number(component.borderRadius || 0)],
@@ -899,6 +920,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['visible', component.visible !== false],
       ['src', resolveAssetReference(component.imageUrl, embeddedAssetRefs)],
       ['fit', 'cover'],
@@ -912,6 +935,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['bg_color', component.bgColor || '#e5e7eb'],
       ['border_radius', Number(component.borderRadius || 0)],
       ['visible', component.visible !== false],
@@ -926,6 +951,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['bg_color', component.bgColor || '#ffffff'],
       ['border_color', component.borderColor || '#e5e7eb'],
       ['text_color', component.color || '#1a1a2e'],
@@ -957,6 +984,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['visible', component.visible !== false],
       ['src', resolveAssetReference(component.audioUrl, embeddedAssetRefs)],
       ['label', component.text || 'Audio'],
@@ -972,6 +1001,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['visible', component.visible !== false],
       ['method', component.httpMethod || 'GET'],
       ['url', component.apiUrl || ''],
@@ -988,6 +1019,8 @@ function renderFirmwareComponent(
       ['y', component.y],
       ['width', component.width],
       ['height', component.height],
+      ['width_mode', component.widthMode || 'fixed'],
+      ['height_mode', component.heightMode || 'fixed'],
       ['visible', component.visible !== false],
       ['value', component.command || ''],
       ['trigger', 'tap'],
@@ -1090,6 +1123,53 @@ function bytesToBase64(bytes: Uint8Array) {
     binary += String.fromCodePoint(byte);
   }
   return btoa(binary);
+}
+
+function base64LengthForBinarySize(binarySize: number) {
+  return 4 * Math.ceil(binarySize / 3);
+}
+
+function estimateZipChunkPacketBytes(chunkBinarySize: number, totalChunks: number) {
+  const payloadBase64 = 'A'.repeat(base64LengthForBinarySize(chunkBinarySize));
+  const probePacket: BLEZipChunkPacket = {
+    cmd: 'zip_chunk',
+    index: Math.max(0, totalChunks - 1),
+    totalChunks,
+    payloadBase64,
+  };
+
+  return new TextEncoder().encode(JSON.stringify(probePacket)).length;
+}
+
+function resolveSafeChunkSize(
+  totalBytes: number,
+  requestedChunkSize: number,
+  maxPacketBytes?: number
+) {
+  const initial = Math.max(1, requestedChunkSize);
+
+  if (!Number.isFinite(maxPacketBytes) || !maxPacketBytes || maxPacketBytes <= 0) {
+    return initial;
+  }
+
+  let low = 1;
+  let high = initial;
+  let best = 1;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const totalChunks = Math.max(1, Math.ceil(totalBytes / mid));
+    const packetBytes = estimateZipChunkPacketBytes(mid, totalChunks);
+
+    if (packetBytes <= maxPacketBytes) {
+      best = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return best;
 }
 
 function resolveHomeLandingEntryPath(
@@ -1229,9 +1309,11 @@ export async function generateJsonScreensExport(state: CMSState): Promise<JsonEx
     jsonFolder.file(fileName, generateScreenJsonExport(state, canvasSize, screen, targetByScreenId, assetRegistry.references));
   });
 
-  assetRegistry.assets.forEach((asset) => {
-    jsonFolder.file(asset.relativePath, asset.bytes);
-  });
+  if (EXPORT_CONFIG.includeAssetsInExport) {
+    assetRegistry.assets.forEach((asset) => {
+      jsonFolder.file(asset.relativePath, asset.bytes);
+    });
+  }
 
   const blob = await zip.generateAsync({ type: 'blob' });
   return {
@@ -1296,9 +1378,11 @@ export async function generateHtmlExport(state: CMSState): Promise<HtmlExportBun
     uiFolder.file(fileName, generateScreenHtml(state, screen, targetByScreenId, assetRegistry.references));
   });
 
-  assetRegistry.assets.forEach((asset) => {
-    uiFolder.file(asset.relativePath, asset.bytes);
-  });
+  if (EXPORT_CONFIG.includeAssetsInExport) {
+    assetRegistry.assets.forEach((asset) => {
+      uiFolder.file(asset.relativePath, asset.bytes);
+    });
+  }
 
   const blob = await zip.generateAsync({ type: 'blob' });
   return {
@@ -1413,9 +1497,11 @@ export async function generateBLEDeploymentBundle(
     }
   });
 
-  assetRegistry.assets.forEach((asset) => {
-    addBinaryFile(`${selectedFolderPath}/${asset.relativePath}`, asset.bytes);
-  });
+  if (EXPORT_CONFIG.includeAssetsInExport) {
+    assetRegistry.assets.forEach((asset) => {
+      addBinaryFile(`${selectedFolderPath}/${asset.relativePath}`, asset.bytes);
+    });
+  }
 
   addTextFile('config/ui_config.json', JSON.stringify(config, null, 2));
 
@@ -1429,7 +1515,7 @@ export async function generateBLEDeploymentBundle(
 
   const blob = await zip.generateAsync({ type: 'blob' });
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  const safeChunkSize = Math.max(1, chunkSize);
+  const safeChunkSize = resolveSafeChunkSize(bytes.byteLength, chunkSize, options.maxPacketBytes);
 
   return {
     blob,
