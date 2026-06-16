@@ -173,6 +173,42 @@ interface EmbeddedAssetRegistry {
 
 interface EmbeddedAssetCollectionOptions {
   rawDeploymentImages?: boolean;
+  alphaBackgroundColor?: string;
+}
+
+interface ImageConversionTarget {
+  width: number;
+  height: number;
+}
+
+function parseHexColorToRgb(color: string | undefined) {
+  const fallback = { r: 255, g: 255, b: 255 };
+  if (!color) {
+    return fallback;
+  }
+
+  const normalized = color.trim().toLowerCase();
+  const shortHex = /^#([0-9a-f]{3})$/i.exec(normalized);
+  if (shortHex) {
+    const [r, g, b] = shortHex[1].split('');
+    return {
+      r: Number.parseInt(`${r}${r}`, 16),
+      g: Number.parseInt(`${g}${g}`, 16),
+      b: Number.parseInt(`${b}${b}`, 16),
+    };
+  }
+
+  const fullHex = /^#([0-9a-f]{6})$/i.exec(normalized);
+  if (fullHex) {
+    const value = fullHex[1];
+    return {
+      r: Number.parseInt(value.slice(0, 2), 16),
+      g: Number.parseInt(value.slice(2, 4), 16),
+      b: Number.parseInt(value.slice(4, 6), 16),
+    };
+  }
+
+  return fallback;
 }
 
 // Export payload includes all component IDs for firmware
@@ -353,7 +389,11 @@ async function decodeRasterImage(bytes: Uint8Array, mimeType: string): Promise<H
   }
 }
 
-async function normalizeDeploymentImageAsset(parsed: { mimeType: string; bytes: Uint8Array }) {
+async function normalizeDeploymentImageAsset(
+  parsed: { mimeType: string; bytes: Uint8Array },
+  target?: ImageConversionTarget,
+  alphaBackgroundColor?: string
+) {
   if (!parsed.mimeType.toLowerCase().startsWith('image/')) {
     return {
       extension: mimeTypeToExtension(parsed.mimeType),
@@ -381,8 +421,10 @@ async function normalizeDeploymentImageAsset(parsed: { mimeType: string; bytes: 
     };
   }
 
-  const width = image.naturalWidth || image.width;
-  const height = image.naturalHeight || image.height;
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const width = Math.max(1, Math.floor(target?.width || sourceWidth));
+  const height = Math.max(1, Math.floor(target?.height || sourceHeight));
   if (!width || !height || typeof document === 'undefined') {
     return {
       extension: mimeTypeToExtension(parsed.mimeType),
@@ -402,25 +444,36 @@ async function normalizeDeploymentImageAsset(parsed: { mimeType: string; bytes: 
     };
   }
 
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
   context.drawImage(image, 0, 0, width, height);
   // Extract RGBA8888 pixel data
   const rgba = context.getImageData(0, 0, width, height).data;
-  // Convert to RGB565 (2 bytes per pixel)
+  const background = parseHexColorToRgb(alphaBackgroundColor);
+  // Convert to RGB565LE (2 bytes per pixel), row-major order.
   const rgb565 = new Uint8Array(width * height * 2);
   for (let i = 0, j = 0; i < rgba.length; i += 4, j += 2) {
-    const r = rgba[i];
-    const g = rgba[i + 1];
-    const b = rgba[i + 2];
-    // Pack into RGB565
+    const alpha = rgba[i + 3] / 255;
+    const invAlpha = 1 - alpha;
+    const r = Math.round((rgba[i] * alpha) + (background.r * invAlpha));
+    const g = Math.round((rgba[i + 1] * alpha) + (background.g * invAlpha));
+    const b = Math.round((rgba[i + 2] * alpha) + (background.b * invAlpha));
+    // Pack RGB into 16-bit RGB565, then write little-endian bytes.
     const value = ((r & 0b11111000) << 8) | ((g & 0b11111100) << 3) | (b >> 3);
-    rgb565[j] = (value >> 8) & 0xFF;
-    rgb565[j + 1] = value & 0xFF;
+    rgb565[j] = value & 0xFF;
+    rgb565[j + 1] = (value >> 8) & 0xFF;
+  }
+
+  const expectedByteSize = width * height * 2;
+  if (rgb565.byteLength !== expectedByteSize) {
+    throw new Error(
+      `RGB565 conversion size mismatch: expected ${expectedByteSize}, got ${rgb565.byteLength} (width=${width}, height=${height})`
+    );
   }
 
   return {
-    extension: 'raw',
+    extension: 'rgb565',
     bytes: rgb565,
-    nameSuffix: `_${width}x${height}`,
   };
 }
 
@@ -433,6 +486,7 @@ async function collectEmbeddedAssets(
   const references = new Map<string, string>();
   const assets: EmbeddedAsset[] = [];
   const usedNames = new Set<string>();
+  const assetFingerprintToPath = new Map<string, string>();
   let counter = 1;
 
   // Determine image conversion mode: 'raw' or 'auto' (JPEG/PNG)
@@ -440,15 +494,23 @@ async function collectEmbeddedAssets(
   const deploymentImageFormat = EXPORT_CONFIG.deploymentImageFormat as 'raw' | 'auto';
   const useRaw = (options.rawDeploymentImages === true) || deploymentImageFormat === 'raw';
   // Print selected image format in console
-  console.log(`[Deploy] Selected deployment image format: ${deploymentImageFormat === 'raw' ? 'RAW (uncompressed RGBA)' : 'AUTO (JPEG/PNG)'}`);
+  console.log(`[Deploy] Selected deployment image format: ${deploymentImageFormat === 'raw' ? 'RAW (RGB565LE .rgb565)' : 'AUTO (keep PNG/JPEG)'}`);
 
 
-  const addAsset = async (rawValue: string | undefined, kind: 'image' | 'audio') => {
+  const addAsset = async (
+    rawValue: string | undefined,
+    kind: 'image' | 'audio',
+    target?: ImageConversionTarget
+  ) => {
     if (!rawValue?.startsWith('data:')) {
       return;
     }
 
-    if (references.has(rawValue)) {
+    const referenceKey = kind === 'image'
+      ? `${rawValue}|${Math.max(1, Math.floor(target?.width || 0))}x${Math.max(1, Math.floor(target?.height || 0))}`
+      : rawValue;
+
+    if (references.has(referenceKey)) {
       return;
     }
 
@@ -460,12 +522,12 @@ async function collectEmbeddedAssets(
     let normalizedAsset;
     if (kind === 'image') {
       if (useRaw) {
-        normalizedAsset = await normalizeDeploymentImageAsset(parsed);
+        normalizedAsset = await normalizeDeploymentImageAsset(parsed, target, options.alphaBackgroundColor);
         const originalKb = (parsed.bytes.byteLength / 1024).toFixed(2);
         const convertedKb = (normalizedAsset.bytes.byteLength / 1024).toFixed(2);
-        const suffix = 'nameSuffix' in normalizedAsset ? (normalizedAsset.nameSuffix ?? '') : '';
+        const sizeSuffix = target ? ` ${Math.max(1, Math.floor(target.width))}x${Math.max(1, Math.floor(target.height))}` : '';
         console.log(
-          `[Deploy] Image asset${suffix}: original=${parsed.mimeType} ${originalKb} KB → raw RGB565${suffix} ${convertedKb} KB`
+          `[Deploy] Image asset${sizeSuffix}: original=${parsed.mimeType} ${originalKb} KB → RGB565LE ${convertedKb} KB (alpha bg=${options.alphaBackgroundColor || '#ffffff'})`
         );
       } else {
         normalizedAsset = {
@@ -486,25 +548,48 @@ async function collectEmbeddedAssets(
     }
 
     const extension = normalizedAsset.extension;
-    // Include pixel dimensions in the filename for raw assets so firmware knows the geometry.
-    const nameSuffix = 'nameSuffix' in normalizedAsset ? (normalizedAsset.nameSuffix ?? '') : '';
-    let fileName = `${kind}_${counter}${nameSuffix}.${extension}`;
+    const fingerprint = `${kind}:${extension}:${normalizedAsset.bytes.byteLength}:${fnv1a32(normalizedAsset.bytes)}`;
+    const existingPath = assetFingerprintToPath.get(fingerprint);
+    if (existingPath) {
+      references.set(referenceKey, existingPath);
+      if (kind === 'image') {
+        const width = Math.max(1, Math.floor(target?.width || 1));
+        const height = Math.max(1, Math.floor(target?.height || 1));
+        console.log(
+          `[Deploy] Reused image asset: path=${existingPath}, width=${width}, height=${height}, bytes=${normalizedAsset.bytes.byteLength}`
+        );
+      }
+      return;
+    }
+
+    let fileName = `${kind}_${counter}.${extension}`;
     while (usedNames.has(fileName.toLowerCase())) {
       counter += 1;
-      fileName = `${kind}_${counter}${nameSuffix}.${extension}`;
+      fileName = `${kind}_${counter}.${extension}`;
     }
 
     usedNames.add(fileName.toLowerCase());
     const relativePath = `assets/${fileName}`;
-    references.set(rawValue, relativePath);
+    assetFingerprintToPath.set(fingerprint, relativePath);
+    references.set(referenceKey, relativePath);
     assets.push({ relativePath, bytes: normalizedAsset.bytes });
+    if (kind === 'image') {
+      const width = Math.max(1, Math.floor(target?.width || 1));
+      const height = Math.max(1, Math.floor(target?.height || 1));
+      console.log(
+        `[Deploy] Packed image asset: path=${relativePath}, width=${width}, height=${height}, bytes=${normalizedAsset.bytes.byteLength}`
+      );
+    }
     counter += 1;
   };
 
   for (const screen of screens) {
     await addAsset(screen.screenAudioUrl, 'audio');
     for (const component of screen.components) {
-      await addAsset(component.imageUrl, 'image');
+      await addAsset(component.imageUrl, 'image', {
+        width: component.width,
+        height: component.height,
+      });
       await addAsset(component.audioUrl, 'audio');
       await addAsset(component.buttonSound, 'audio');
     }
@@ -606,6 +691,21 @@ function resolveAssetReference(value: string | undefined, embeddedAssetRefs: Map
   }
 
   return embeddedAssetRefs.get(safeValue) || safeValue;
+}
+
+function resolveImageAssetReference(
+  value: string | undefined,
+  embeddedAssetRefs: Map<string, string>,
+  width: number,
+  height: number
+) {
+  const safeValue = sanitizeAssetUrl(value);
+  if (!safeValue) {
+    return '';
+  }
+
+  const imageKey = `${safeValue}|${Math.max(1, Math.floor(width || 0))}x${Math.max(1, Math.floor(height || 0))}`;
+  return embeddedAssetRefs.get(imageKey) || embeddedAssetRefs.get(safeValue) || safeValue;
 }
 
 function normalizeExportInputAction(action: string | undefined) {
@@ -730,7 +830,7 @@ function buildFirmwareJsonComponent(
       height: component.height,
       width_mode: component.widthMode || 'fixed',
       height_mode: component.heightMode || 'fixed',
-      src: resolveAssetReference(component.imageUrl, embeddedAssetRefs),
+      src: resolveImageAssetReference(component.imageUrl, embeddedAssetRefs, component.width, component.height),
       fit: 'cover',
     };
   }
@@ -923,7 +1023,7 @@ function renderFirmwareComponent(
       ['width_mode', component.widthMode || 'fixed'],
       ['height_mode', component.heightMode || 'fixed'],
       ['visible', component.visible !== false],
-      ['src', resolveAssetReference(component.imageUrl, embeddedAssetRefs)],
+      ['src', resolveImageAssetReference(component.imageUrl, embeddedAssetRefs, component.width, component.height)],
       ['fit', 'cover'],
     ]);
   }
@@ -1123,6 +1223,15 @@ function bytesToBase64(bytes: Uint8Array) {
     binary += String.fromCodePoint(byte);
   }
   return btoa(binary);
+}
+
+function fnv1a32(bytes: Uint8Array) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < bytes.length; index += 1) {
+    hash ^= bytes[index];
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
 function base64LengthForBinarySize(binarySize: number) {
@@ -1429,6 +1538,7 @@ export async function generateBLEDeploymentBundle(
   // Only use rawDeploymentImages if EXPORT_CONFIG.deploymentImageFormat is 'raw'
   const assetRegistry = await collectEmbeddedAssets(state.screens, {
     rawDeploymentImages: (EXPORT_CONFIG.deploymentImageFormat as string) === 'raw',
+    alphaBackgroundColor: state.project?.defaultCanvasBgColor || '#ffffff',
   });
   const fileEntries: UIDeployManifest['files'] = [];
 

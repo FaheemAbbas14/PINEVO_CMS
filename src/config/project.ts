@@ -101,7 +101,7 @@ export const EXPORT_CONFIG = {
             includeFontsInExport: false,
     // Control whether embedded image/audio assets are included in export/deployment zip bundles.
     // When false, asset data URLs in component properties are replaced with empty paths in exports.
-    includeAssetsInExport: false,
+    includeAssetsInExport: true,
         // PNG upload constraints for image assets
         pngUpload: {
             maxWidth: PNG_UPLOAD_LIMITS.maxWidth,
@@ -118,8 +118,8 @@ export const EXPORT_CONFIG = {
         backend: 'lfs',
         basePath: '/lfs/ui',
     },
-    // Deployment image conversion mode: 'raw' (uncompressed RGBA) or 'auto' (JPEG/PNG based on transparency)
-    deploymentImageFormat: 'auto', // 'raw' | 'auto'
+    // Deployment image conversion mode: 'raw' (raw RGB565LE bytes, .rgb565) or 'auto' (keep source PNG/JPEG)
+    deploymentImageFormat: 'raw', // 'raw' | 'auto'
     // Folder paths for selected UI types.
     ui: {
         html: 'ui/html',
