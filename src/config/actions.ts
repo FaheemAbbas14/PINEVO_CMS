@@ -48,6 +48,7 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
   { value: 'door_not_opened', label: 'Door Not Opened', description: 'Confirmed door not opened', type: 'device' },
    { value: 'reopen_door', label: 'Reopen Door', description: 'Reopen the door', type: 'device' },
     { value: 'change_door', label: 'Change Door', description: 'Change door ', type: 'device' },
+     { value: 'submit', label: 'Submit', description: 'Submit action', type: 'device' },
 ];
 
 // ============================================================================

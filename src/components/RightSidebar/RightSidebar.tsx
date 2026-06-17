@@ -2,6 +2,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { convertImageToPngStrict } from '../../utils/pngConvert';
 import { useLanguage } from '../../App';
 import Modal from 'react-modal';
+import { DEVICE_ACTIONS } from '../../config/actions';
 
 // Type for language translations
 type Translations = { [key: string]: string };
@@ -11,25 +12,11 @@ type CanvasComponent = {
   [key: string]: any;
 };
 // Configuration for dynamic fields per component type
-// Font detection utility
-// Dynamically load all TTFs in src/assets/fonts for the font family dropdown
-function getFontOptions() {
-  // Use Vite's import.meta.glob to get all TTFs in src/assets/fonts
-  const fontModules = import.meta.glob('/src/assets/fonts/*.ttf', { as: 'url', eager: true });
-  return Object.entries(fontModules).map(([file, url]) => {
-    // file: '/src/assets/fonts/Roboto-Bold.ttf'
-    const name = file.split('/').pop()?.replace('.ttf', '') || file;
-    // Label: split by dash/underscore and capitalize
-    const label = name.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-    return {
-      value: name,
-      label,
-      file: url,
-    };
-  });
-}
 
-const FONT_OPTIONS = getFontOptions();
+const MAX_LENGTH_DEVICE_ACTION_OPTIONS = [
+  { value: 'none', label: 'None' },
+  ...DEVICE_ACTIONS.map((action) => ({ value: action.value, label: action.label })),
+];
 
 const FIELD_CONFIG = {
   text: [
@@ -39,24 +26,30 @@ const FIELD_CONFIG = {
       { value: 'center', label: 'Center' },
       { value: 'right', label: 'Right' },
     ] },
-    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
-    { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
+    { key: 'fontSize', label: 'Font Size', type: 'select', options: [
+      { value: 16, label: '16' },
+      { value: 20, label: '20' },
+      { value: 24, label: '24' },
+      { value: 28, label: '28' },
+      { value: 32, label: '32' },
+    ], default: 16 },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
     { key: 'borderColor', label: 'Border Color', type: 'color', default: '#000000' },
     { key: 'borderRadius', label: 'Border Radius', type: 'number', default: 0 },
-    // Font Weight removed
   ],
   text_input: [
     { key: 'labelKey', label: 'Label', type: 'langKey' },
     { key: 'placeholderKey', label: 'Placeholder', type: 'langKey' },
-    { key: 'maxLengthAction', label: 'On Max Length Action', type: 'select', options: [
+    { key: 'maxLengthAction', label: 'Selection Action', type: 'select', options: [
       { value: 'none', label: 'None' },
+      { value: 'function', label: 'Select Action' },
       { value: 'goto_screen', label: 'Go to Screen' },
       { value: 'play_audio', label: 'Play Audio' },
       { value: 'api_call', label: 'API Call' },
       { value: 'run_command', label: 'Run Command' },
     ] },
+    { key: 'maxLengthFunction', label: 'Select Action', type: 'select', dependsOn: { key: 'maxLengthAction', value: 'function' }, options: MAX_LENGTH_DEVICE_ACTION_OPTIONS },
     { key: 'maxLengthGoToScreen', label: 'Go to Screen', type: 'screenSelect', dependsOn: { key: 'maxLengthAction', value: 'goto_screen' } },
     { key: 'maxLengthAudio', label: 'Audio URL', type: 'text', dependsOn: { key: 'maxLengthAction', value: 'play_audio' } },
     { key: 'maxLengthApiCall', label: 'API URL Trigger', type: 'text', dependsOn: { key: 'maxLengthAction', value: 'api_call' } },
@@ -75,8 +68,13 @@ const FIELD_CONFIG = {
       { value: 'center', label: 'Center' },
       { value: 'right', label: 'Right' },
     ] },
-    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
-    { key: 'fontFamily', label: 'Font Family', type: 'fontSelect', options: FONT_OPTIONS },
+    { key: 'fontSize', label: 'Font Size', type: 'select', options: [
+      { value: 16, label: '16' },
+      { value: 20, label: '20' },
+      { value: 24, label: '24' },
+      { value: 28, label: '28' },
+      { value: 32, label: '32' },
+    ], default: 16 },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'borderWidth', label: 'Border Width', type: 'number', default: 1 },
     { key: 'borderColor', label: 'Border Color', type: 'color', default: '#e5e7eb' },
@@ -111,7 +109,13 @@ const FIELD_CONFIG = {
     { key: 'buttonSound', label: 'Sound URL', type: 'text', dependsOn: { key: 'function', value: 'play_audio' } },
     { key: 'apiCall', label: 'API URL Trigger', type: 'text', dependsOn: { key: 'function', value: 'api_call' } },
     { key: 'command', label: 'Run Command', type: 'text' },
-    { key: 'fontSize', label: 'Font Size', type: 'number', default: 14 },
+    { key: 'fontSize', label: 'Font Size', type: 'select', options: [
+      { value: 16, label: '16' },
+      { value: 20, label: '20' },
+      { value: 24, label: '24' },
+      { value: 28, label: '28' },
+      { value: 32, label: '32' },
+    ], default: 16 },
     { key: 'color', label: 'Text Color', type: 'color', default: '#000000' },
     { key: 'bgColor', label: 'Background', type: 'color', default: '#4f46e5' },
     { key: 'borderWidth', label: 'Border Width', type: 'number', default: 0 },
@@ -837,7 +841,19 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                   );
                 }
                 // Conditional rendering based on dependencies
-                if ('dependsOn' in field && field.dependsOn && localValues[field.dependsOn.key] !== field.dependsOn.value) return null;
+                if ('dependsOn' in field && field.dependsOn) {
+                  let dependsOnValue = localValues[field.dependsOn.key];
+                  // If max-length action is function mode, dependent action fields should
+                  // be driven by the selected maxLengthFunction instead of maxLengthAction.
+                  if (
+                    field.dependsOn.key === 'maxLengthAction'
+                    && localValues.maxLengthAction === 'function'
+                    && field.key !== 'maxLengthFunction'
+                  ) {
+                    dependsOnValue = localValues.maxLengthFunction || 'none';
+                  }
+                  if (dependsOnValue !== field.dependsOn.value) return null;
+                }
                 if (field.type === 'select' && Array.isArray(options)) {
                   return (
                     <div className="property-field" key={field.key}>
@@ -968,6 +984,54 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                     </div>
                   );
                 }
+
+                if (field.key === 'maxLengthAudio') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <input
+                        type="text"
+                        value={localValues[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      />
+                      <label className="file-upload-btn" style={{ marginTop: 6 }}>
+                        <span>Pick Audio File</span>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) {
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              handleChange(field.key, event.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {localValues[field.key] && (
+                        <button
+                          type="button"
+                          className="btn-play-preview"
+                          style={{ marginTop: 8 }}
+                          onClick={() => {
+                            const audio = new Audio(localValues[field.key]);
+                            audio.play().catch((err) => console.error('Error playing max-length audio:', err));
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                          Play Preview
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
                 // Default: text input
                 return (
                   <div className="property-field" key={field.key}>

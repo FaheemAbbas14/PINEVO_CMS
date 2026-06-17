@@ -42,7 +42,7 @@ export const BLE_CONFIG = {
         // How long to wait for normal zip_start/zip_chunk ACK responses.
         ackTimeoutMs: 8000,
         // Longer timeout for the final commit/status phase.
-        commitAckTimeoutMs: 180000,
+        commitAckTimeoutMs: 240000,
         // Number of resend attempts before failing an ACK-based packet.
         ackRetryCount: 2,
         // Number of extra retries for a chunk write in no-ACK mode.
@@ -52,7 +52,7 @@ export const BLE_CONFIG = {
         abortOnAnyChunkWriteError: false,
         // Backoff schedule (ms) for no-ACK chunk write retries.
         // The first value is also used as the normal inter-chunk pacing delay.
-        noAckChunkWriteRetryBackoffMs: [50, 100, 150],
+        noAckChunkWriteRetryBackoffMs: [80, 150, 250],
         // Delay before closing the deployment dialog after completion.
         deployDialogCloseDelayMs: 250,
         // Default chunk delay used by the legacy BLE deployment service.

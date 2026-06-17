@@ -77,7 +77,8 @@ export interface CanvasComponent {
   audioUrl?: string;     // Audio file URL
 
   // Text Input max-length action settings
-  maxLengthAction?: 'none' | 'goto_screen' | 'play_audio' | 'api_call' | 'run_command';
+  maxLengthAction?: 'none' | 'function' | 'goto_screen' | 'play_audio' | 'api_call' | 'run_command';
+  maxLengthFunction?: string;
   maxLengthGoToScreen?: string;
   maxLengthApiCall?: string;
   maxLengthCommand?: string;

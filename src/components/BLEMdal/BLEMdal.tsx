@@ -390,6 +390,7 @@ export default function BLEMdal({
     const [deployPhase, setDeployPhase] = useState<'idle' | 'preparing' | 'starting' | 'uploading' | 'flashing' | 'complete'>('idle');
     const [deployCurrentChunk, setDeployCurrentChunk] = useState(0);
     const [deployTotalChunks, setDeployTotalChunks] = useState(0);
+    const [firmwareStatus, setFirmwareStatus] = useState<{ stage?: string; status?: string }>({});
     // Language modal state
     const [showLangModal, setShowLangModal] = useState(false);
     const [newLangKey, setNewLangKey] = useState('');
@@ -441,6 +442,7 @@ export default function BLEMdal({
             setDeployPhase('idle');
             setDeployCurrentChunk(0);
             setDeployTotalChunks(0);
+            setFirmwareStatus({});
         }
     }, [isHtmlEnabled, isJsonEnabled, isOpen, selectedDeployType]);
 
@@ -669,6 +671,14 @@ export default function BLEMdal({
             try {
                 ackChannel = await setupAckNotifications(service, characteristic, (ack) => {
                     const cmd = String(ack?.cmd || '').toLowerCase();
+                    
+                    // Track firmware status updates for UI display
+                    if (cmd === 'zip_commit_status') {
+                        const stage = String(ack?.stage || 'unknown').toLowerCase();
+                        setFirmwareStatus({ stage, status: ack?.status });
+                        addLog('info', `Firmware status: stage=${stage}, status=${ack?.status || 'ok'}`);
+                    }
+                    
                     if (cmd !== 'zip_commit_ack') {
                         return;
                     }
@@ -1174,7 +1184,7 @@ export default function BLEMdal({
                                     </div>
                                     {showFlashingCompletion && (
                                         <div className="ble-complete-flash" role="status" aria-live="polite">
-                                            Deployment reached 100%. Flashing...
+                                            Deployment reached 100%. {firmwareStatus.stage && firmwareStatus.stage !== 'queued' ? `Firmware: ${firmwareStatus.stage.charAt(0).toUpperCase() + firmwareStatus.stage.slice(1)}...` : 'Flashing...'}
                                         </div>
                                     )}
                                     <div className="ble-progress-chunks">

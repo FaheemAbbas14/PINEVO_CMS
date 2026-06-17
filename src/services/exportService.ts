@@ -19,7 +19,7 @@ function collectUsedFontFiles(screens: Screen[]): string[] {
       if ((component.type === 'text' || component.type === 'text_input' || component.type === 'button') && !family) {
         family = 'Carlito-Regular';
       }
-      let size = component.fontSize || 14;
+      let size = component.fontSize || 16;
       if (component.type === 'text' || component.type === 'text_input' || component.type === 'button') {
         usedFonts.add(`${family}_${size}`);
       }
@@ -864,6 +864,10 @@ function buildFirmwareJsonComponent(
   }
 
   if (component.type === 'text_input') {
+    const maxLengthResolvedAction = component.maxLengthAction === 'function'
+      ? (component.maxLengthFunction || 'none')
+      : (component.maxLengthAction || 'none');
+
     return {
       ...base,
       type: 'input',
@@ -890,7 +894,7 @@ function buildFirmwareJsonComponent(
       placeholderMode: component.placeholderMode,
       inputType: component.inputType || 'text',
       maxLength: Number(component.maxLength || 0),
-      maxLengthAction: component.maxLengthAction || 'none',
+      maxLengthAction: maxLengthResolvedAction,
       maxLengthGoToScreen: component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : '',
       maxLengthApiCall: component.maxLengthApiCall || '',
       maxLengthCommand: component.maxLengthCommand || '',
@@ -1077,6 +1081,10 @@ function renderFirmwareComponent(
   }
 
   if (component.type === 'text_input') {
+    const maxLengthResolvedAction = component.maxLengthAction === 'function'
+      ? (component.maxLengthFunction || 'none')
+      : (component.maxLengthAction || 'none');
+
     const hasLabelKey = !!component.labelKey;
     return buildTag('input', [
       idAttr,
@@ -1103,7 +1111,7 @@ function renderFirmwareComponent(
       ['data-placeholder-mode', component.placeholderMode],
       ['data-input-type', component.inputType || 'text'],
       ['data-max-length', Number(component.maxLength || 0)],
-      ['data-max-length-action', component.maxLengthAction || 'none'],
+      ['data-max-length-action', maxLengthResolvedAction],
       ['data-max-length-target', component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : ''],
       ['data-max-length-api-call', component.maxLengthApiCall || ''],
       ['data-max-length-command', component.maxLengthCommand || ''],

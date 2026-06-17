@@ -63,7 +63,9 @@ export default function TextInputItem({ component }: Props) {
 
         maxLengthActionTriggeredRef.current = true;
 
-        const action = component.maxLengthAction || 'none';
+        const action = component.maxLengthAction === 'function'
+            ? (component.maxLengthFunction || 'none')
+            : (component.maxLengthAction || 'none');
         if (action === 'goto_screen' && component.maxLengthGoToScreen) {
             setActiveScreen(component.maxLengthGoToScreen);
             return;
@@ -91,6 +93,7 @@ export default function TextInputItem({ component }: Props) {
         }
     }, [
         component.maxLengthAction,
+        component.maxLengthFunction,
         component.maxLengthApiCall,
         component.maxLengthAudio,
         component.maxLengthCommand,

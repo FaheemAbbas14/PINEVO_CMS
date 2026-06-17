@@ -11,7 +11,7 @@ const archiver = require('archiver');
 const FONT_DIR = path.join('src', 'assets', 'fonts');
 const OUTPUT_DIR = 'font_l4_output';
 const ZIP_PATH = 'font_l4_firmware.zip';
-const FONT_SIZES = [14, 16, 20, 22, 24, 26];
+const FONT_SIZES = [16, 20, 24, 28, 32];
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; // Glyphs to export
 
 function toL4(gray) {

@@ -103,7 +103,7 @@ function getDefaultState(): CMSState {
         height: 60,
         labelKey: 'pickup',
         placeholderKey: 'pickup',
-        fontSize: 18,
+        fontSize: 16,
         color: '#222',
         bgColor: '#fff',
         borderRadius: 8
