@@ -49,6 +49,9 @@ export const DEVICE_ACTIONS: ActionDefinition[] = [
    { value: 'reopen_door', label: 'Reopen Door', description: 'Reopen the door', type: 'device' },
     { value: 'change_door', label: 'Change Door', description: 'Change door ', type: 'device' },
      { value: 'submit', label: 'Submit', description: 'Submit action', type: 'device' },
+        { value: 'clear_textbox', label: 'Clear Textbox', description: 'Clear textbox action', type: 'device' },
+           { value: 'remove_text', label: 'Remove Text', description: 'Remove text action', type: 'device' },
+     
 ];
 
 // ============================================================================

@@ -11,6 +11,28 @@ function getFontKey(family: string | undefined, size: number | undefined) {
   const base = fontFileMap[family || 'Carlito-Regular'] || (family ? family.toLowerCase().replaceAll(' ', '-') : 'carlito-regular');
   return `${base}_${size || 14}`;
 }
+
+function mapExportHardwareButtonKey(buttonId: string): string {
+  const normalized = String(buttonId || '').trim().toLowerCase();
+
+  if (normalized === 'cancel') {
+    return 'b';
+  }
+
+  if (normalized === 'backspace') {
+    return 'T';
+  }
+
+  if (normalized === 'enter') {
+    return 'X';
+  }
+
+  if (normalized === 'vol_up' || normalized === 'vol_down') {
+    return 'V';
+  }
+
+  return buttonId;
+}
 function collectUsedFontFiles(screens: Screen[]): string[] {
   const usedFonts = new Set<string>();
   for (const screen of screens) {
@@ -1206,7 +1228,7 @@ function generateScreenHtml(
         const config = normalizeHardwareButtonConfig(rawConfig);
         const target = config?.goToScreen ? targetByScreenId.get(config.goToScreen) || '' : '';
         return buildTag('hardware_button', [
-          ['key', buttonId],
+          ['key', mapExportHardwareButtonKey(buttonId)],
           ['target', target],
           ['input_action', normalizeExportInputAction(config?.inputAction)],
           ['command', config?.command || ''],
@@ -1401,7 +1423,7 @@ function generateScreenJsonExport(
       .map(([buttonId, config]) => {
         const normalized = normalizeHardwareButtonConfig(config);
         return {
-          key: buttonId,
+          key: mapExportHardwareButtonKey(buttonId),
           target: normalized?.goToScreen ? targetByScreenId.get(normalized.goToScreen) || '' : '',
           input_action: normalizeExportInputAction(normalized?.inputAction),
           command: normalized?.command || '',
