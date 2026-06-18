@@ -62,13 +62,35 @@ import NewProjectModal from './components/NewProjectModal/NewProjectModal';
 import PINSimulator from './components/PINSimulator/PINSimulator';
 import './App.css';
 
+const LEFT_SIDEBAR_WIDTH_KEY = 'pinevo.layout.leftSidebarWidth';
+const RIGHT_SIDEBAR_WIDTH_KEY = 'pinevo.layout.rightSidebarWidth';
+const MIN_SIDEBAR_WIDTH = 180;
+const MAX_SIDEBAR_WIDTH = 460;
+
+function loadStoredSidebarWidth(key: string, fallback: number): number {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed)) {
+      return Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, parsed));
+    }
+  } catch {
+    // Ignore storage read errors.
+  }
+  return fallback;
+}
+
 function AppContent() {
   const { locale, setLocale, t } = useLanguage();
   const { state, setProject, clearSession, loadProject } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showPINSimulator, setShowPINSimulator] = useState(false);
   const [zoom, setZoom] = useState(100);
+  const [leftSidebarWidth, setLeftSidebarWidth] = useState(() => loadStoredSidebarWidth(LEFT_SIDEBAR_WIDTH_KEY, 210));
+  const [rightSidebarWidth, setRightSidebarWidth] = useState(() => loadStoredSidebarWidth(RIGHT_SIDEBAR_WIDTH_KEY, 260));
+  const [activeResizeSide, setActiveResizeSide] = useState<'left' | 'right' | null>(null);
   const sidebarRef = useRef<any>(null);
+  const resizeRef = useRef<{ side: 'left' | 'right'; startX: number; startWidth: number } | null>(null);
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 25, 150));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 25, 75));
@@ -82,6 +104,71 @@ function AppContent() {
       setZoom(prev => Math.min(Math.max(prev + delta, 75), 150));
     }
   };
+
+  const beginResize = (side: 'left' | 'right', event: React.MouseEvent) => {
+    event.preventDefault();
+    const startWidth = side === 'left' ? leftSidebarWidth : rightSidebarWidth;
+    resizeRef.current = {
+      side,
+      startX: event.clientX,
+      startWidth,
+    };
+    setActiveResizeSide(side);
+  };
+
+  useEffect(() => {
+    if (!activeResizeSide) {
+      return;
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      const resizeState = resizeRef.current;
+      if (!resizeState) {
+        return;
+      }
+
+      const deltaX = event.clientX - resizeState.startX;
+      const rawNextWidth = resizeState.side === 'left'
+        ? resizeState.startWidth + deltaX
+        : resizeState.startWidth - deltaX;
+      const nextWidth = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, rawNextWidth));
+
+      if (resizeState.side === 'left') {
+        setLeftSidebarWidth(nextWidth);
+      } else {
+        setRightSidebarWidth(nextWidth);
+      }
+    };
+
+    const onMouseUp = () => {
+      setActiveResizeSide(null);
+      resizeRef.current = null;
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [activeResizeSide]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEFT_SIDEBAR_WIDTH_KEY, String(leftSidebarWidth));
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [leftSidebarWidth]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIGHT_SIDEBAR_WIDTH_KEY, String(rightSidebarWidth));
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [rightSidebarWidth]);
 
   // Calculate scale factor (0.75 to 1.5)
   const scale = zoom / 100;
@@ -158,7 +245,7 @@ function AppContent() {
   // Show editor when project exists
   return (
     <DndProvider backend={HTML5Backend}>
-      <div className={`app-container ${state.sandboxMode ? 'sandbox-mode' : ''} ${state.previewMode ? 'preview-mode' : ''}`}>
+      <div className={`app-container ${state.sandboxMode ? 'sandbox-mode' : ''} ${state.previewMode ? 'preview-mode' : ''} ${activeResizeSide ? 'resizing' : ''}`}>
         <a href="#main-content" className="skip-link">Skip to main content</a>
         <TopBar onOpenSimulator={() => setShowPINSimulator(true)} sidebarRef={sidebarRef} />
         {state.sandboxMode && (
@@ -179,7 +266,17 @@ function AppContent() {
           </div>
         )}
         <main className="main-content" id="main-content">
-          <LeftSidebar />
+          <LeftSidebar width={leftSidebarWidth} />
+          <div
+            className={`sidebar-resize-handle left ${activeResizeSide === 'left' ? 'active' : ''}`}
+            onMouseDown={(event) => beginResize('left', event)}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize left sidebar"
+            tabIndex={-1}
+          >
+            <span className="resize-handle-icon" aria-hidden="true">⋮</span>
+          </div>
           <div className="center-panel">
             <div className="zoom-controls">
               <button onClick={handleZoomOut} title="Zoom Out">−</button>
@@ -195,7 +292,17 @@ function AppContent() {
               </div>
             </div>
           </div>
-          <RightSidebar ref={sidebarRef} />
+          <div
+            className={`sidebar-resize-handle right ${activeResizeSide === 'right' ? 'active' : ''}`}
+            onMouseDown={(event) => beginResize('right', event)}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize right sidebar"
+            tabIndex={-1}
+          >
+            <span className="resize-handle-icon" aria-hidden="true">⋮</span>
+          </div>
+          <RightSidebar ref={sidebarRef} width={rightSidebarWidth} />
         </main>
         <PINSimulator
           isOpen={showPINSimulator}

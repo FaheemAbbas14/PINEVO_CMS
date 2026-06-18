@@ -33,12 +33,10 @@ function getFirstEnabledDeployType(): DeployUIType {
 
 export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarProps>) {
 
-  const { state, setProject, addScreen, duplicateActiveScreen, deleteScreen, renameScreen, setActiveScreen, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
+  const { state, setProject, saveScreens, saveAsHtml, saveProject, loadProject, setPreviewMode, clearSession, selectedComponent, updateComponent } = useCMS();
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [showBLEModal, setShowBLEModal] = useState(false);
   const [bleDevice, setBleDevice] = useState<BLEDevice | null>(null);
-  const [editingScreenId, setEditingScreenId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [selectedDeployType, setSelectedDeployType] = useState<DeployUIType>(getFirstEnabledDeployType());
 
@@ -96,28 +94,6 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
     setShowNewProjectModal(false);
   };
 
-  const handleScreenDoubleClick = (screenId: string, currentName: string) => {
-    setEditingScreenId(screenId);
-    setEditName(currentName);
-  };
-
-  const handleScreenRename = (screenId: string) => {
-    if (editName.trim()) {
-      renameScreen(screenId, editName.trim());
-    }
-    setEditingScreenId(null);
-    setEditName('');
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent, screenId: string) => {
-    if (e.key === 'Enter') {
-      handleScreenRename(screenId);
-    } else if (e.key === 'Escape') {
-      setEditingScreenId(null);
-      setEditName('');
-    }
-  };
-
   const hasAnyExportFormat = FEATURE_FLAGS.enableHtmlUiFormat || FEATURE_FLAGS.enableJsonUiFormat;
 
   return (
@@ -141,63 +117,6 @@ export default function TopBar({ onOpenSimulator, sidebarRef }: Readonly<TopBarP
 
         {state.project ? (
           <>
-            <div className="topbar-screens">
-              <span className="topbar-label" id="screens-label">SCREENS</span>
-              <div className="screen-tabs" role="tablist" aria-labelledby="screens-label">
-                {state.screens.map((screen) => (
-                  <button
-                    key={screen.id}
-                    role="tab"
-                    aria-selected={screen.id === state.activeScreenId}
-                    aria-controls="canvas-panel"
-                    className={`screen-tab ${screen.id === state.activeScreenId ? 'active' : ''}`}
-                    onClick={() => setActiveScreen(screen.id)}
-                    onDoubleClick={() => handleScreenDoubleClick(screen.id, screen.name)}
-                    title="Double-click to rename"
-                  >
-                    {editingScreenId === screen.id ? (
-                      <input
-                        type="text"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onBlur={() => handleScreenRename(screen.id)}
-                        onKeyDown={(e) => handleKeyDown(e, screen.id)}
-                        autoFocus
-                        className="screen-name-input"
-                      />
-                    ) : (
-                      screen.name
-                    )}
-                  </button>
-                ))}
-              </div>
-              <button className="btn-icon btn-add" onClick={addScreen} title="Add Screen">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
-              <button className="btn-icon btn-duplicate" onClick={duplicateActiveScreen} title="Duplicate Active Screen">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <rect x="4" y="4" width="11" height="11" rx="2" />
-                </svg>
-              </button>
-              <button
-                className="btn-icon btn-delete"
-                onClick={() => deleteScreen(state.activeScreenId)}
-                title="Delete Screen"
-                disabled={state.screens.length <= 1}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6M14 11v6" />
-                  <path d="M9 6V4h6v2" />
-                </svg>
-              </button>
-            </div>
-
             <div className="topbar-actions">
               <button className="btn-save btn-compact" onClick={() => loadProject()} aria-label="Open project">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">

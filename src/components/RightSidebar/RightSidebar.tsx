@@ -193,8 +193,12 @@ import { useCMS } from '../../context/AppContext';
 import './RightSidebar.css';
 import { getPersistedLanguageCodes, saveLanguageToProject, loadLanguageFromProject } from '../../locales/persistLanguage';
 
+interface RightSidebarProps {
+  width?: number;
+}
 
-const RightSidebar = forwardRef(function RightSidebar(_, ref) {
+
+const RightSidebar = forwardRef(function RightSidebar({ width }: Readonly<RightSidebarProps>, ref) {
   // Only declare these once
   const { locale } = useLanguage();
   const { state, activeScreen, selectedComponent, updateComponent, deleteComponent, updateSandboxConfig, resetSandboxConfig, updateProjectSettings, updateActiveScreenSettings } = useCMS();
@@ -377,7 +381,7 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
   if (!selectedComponent || !localValues) {
     if (state.sandboxMode) {
       return (
-        <aside className="right-sidebar">
+        <aside className="right-sidebar" style={typeof width === 'number' ? { width } : undefined}>
           <div className="sidebar-header">
             <h2 className="sidebar-title">Sandbox Config</h2>
             <span className="sandbox-badge">Sandbox</span>
@@ -487,7 +491,7 @@ const RightSidebar = forwardRef(function RightSidebar(_, ref) {
     }
 
     return (
-      <aside className="right-sidebar empty">
+      <aside className="right-sidebar empty" style={typeof width === 'number' ? { width } : undefined}>
         <div className="empty-state">
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
@@ -713,7 +717,7 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
   };
 
   return (
-    <aside className="right-sidebar">
+    <aside className="right-sidebar" style={typeof width === 'number' ? { width } : undefined}>
       <div className="sidebar-header">
         <h2 className="sidebar-title">Properties</h2>
         <span className="component-type-tag">{selectedComponent.type.toUpperCase()}</span>
@@ -1020,6 +1024,53 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).__writeLangFile) {
                           onClick={() => {
                             const audio = new Audio(localValues[field.key]);
                             audio.play().catch((err) => console.error('Error playing max-length audio:', err));
+                          }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                          Play Preview
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                if (field.key === 'buttonSound') {
+                  return (
+                    <div className="property-field" key={field.key}>
+                      <label>{field.label}</label>
+                      <input
+                        type="text"
+                        value={localValues[field.key] || ''}
+                        onChange={e => handleChange(field.key, e.target.value)}
+                      />
+                      <label className="file-upload-btn" style={{ marginTop: 6 }}>
+                        <span>Pick Audio File</span>
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) {
+                              return;
+                            }
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              handleChange(field.key, event.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      {localValues[field.key] && (
+                        <button
+                          type="button"
+                          className="btn-play-preview"
+                          style={{ marginTop: 8 }}
+                          onClick={() => {
+                            const audio = new Audio(localValues[field.key]);
+                            audio.play().catch((err) => console.error('Error playing button sound:', err));
                           }}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">

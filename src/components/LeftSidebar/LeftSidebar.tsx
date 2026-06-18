@@ -1,8 +1,24 @@
+import { useEffect, useState } from 'react';
 import { useDrag } from 'react-dnd';
 import { DragTypes } from '../../types';
 import type { ComponentType } from '../../types';
 import { useCMS } from '../../context/AppContext';
 import './LeftSidebar.css';
+
+const SCREENS_COLLAPSED_STORAGE_KEY = 'pinevo.leftSidebar.screensCollapsed';
+const COMPONENTS_COLLAPSED_STORAGE_KEY = 'pinevo.leftSidebar.componentsCollapsed';
+
+function getStoredCollapsedState(key: string, defaultValue: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) {
+      return defaultValue;
+    }
+    return raw === 'true';
+  } catch {
+    return defaultValue;
+  }
+}
 
 interface PaletteItem {
   type: ComponentType;
@@ -149,31 +165,162 @@ function DraggablePaletteItem({ item }: { item: PaletteItem }) {
   );
 }
 
-export default function LeftSidebar() {
-  const { state, setSandboxMode } = useCMS();
+interface LeftSidebarProps {
+  width?: number;
+}
+
+export default function LeftSidebar({ width }: Readonly<LeftSidebarProps>) {
+  const {
+    state,
+    setSandboxMode,
+    addScreen,
+    duplicateActiveScreen,
+    deleteScreen,
+    renameScreen,
+    setActiveScreen,
+  } = useCMS();
+  const [screensCollapsed, setScreensCollapsed] = useState(() =>
+    getStoredCollapsedState(SCREENS_COLLAPSED_STORAGE_KEY, false)
+  );
+  const [componentsCollapsed, setComponentsCollapsed] = useState(() =>
+    getStoredCollapsedState(COMPONENTS_COLLAPSED_STORAGE_KEY, false)
+  );
+  const [editingScreenId, setEditingScreenId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   // Disable dragging in preview mode
   const isPreviewMode = state.previewMode;
 
+  const handleScreenDoubleClick = (screenId: string, currentName: string) => {
+    setEditingScreenId(screenId);
+    setEditName(currentName);
+  };
+
+  const handleScreenRename = (screenId: string) => {
+    if (editName.trim()) {
+      renameScreen(screenId, editName.trim());
+    }
+    setEditingScreenId(null);
+    setEditName('');
+  };
+
+  const handleScreenRenameKeyDown = (e: React.KeyboardEvent, screenId: string) => {
+    if (e.key === 'Enter') {
+      handleScreenRename(screenId);
+    } else if (e.key === 'Escape') {
+      setEditingScreenId(null);
+      setEditName('');
+    }
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SCREENS_COLLAPSED_STORAGE_KEY, String(screensCollapsed));
+    } catch {
+      // Ignore persistence errors (e.g. private mode or disabled storage).
+    }
+  }, [screensCollapsed]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMPONENTS_COLLAPSED_STORAGE_KEY, String(componentsCollapsed));
+    } catch {
+      // Ignore persistence errors (e.g. private mode or disabled storage).
+    }
+  }, [componentsCollapsed]);
+
   return (
-    <aside className="left-sidebar">
+    <aside className="left-sidebar" style={typeof width === 'number' ? { width } : undefined}>
       {!isPreviewMode && (
         <>
           <div className="sidebar-header">
-            <h2 className="sidebar-title">Components</h2>
-            <span className="sidebar-subtitle">Drag onto canvas</span>
-          </div>
-          <div className="palette-list">
-            {PALETTE_ITEMS.map((item) => (
-              <DraggablePaletteItem key={item.type} item={item} />
-            ))}
+            <h2 className="sidebar-title">Workspace</h2>
+            <span className="sidebar-subtitle">Manage screens and components</span>
           </div>
 
-          <div className="sidebar-section-title">Coming Soon</div>
-          <div className="palette-future">
-            {['QR Scanner', 'NFC Button', 'Animation'].map((name) => (
-              <div key={name} className="palette-item-future">{name}</div>
-            ))}
+          <div className="sidebar-section">
+            <button
+              type="button"
+              className="sidebar-section-toggle"
+              onClick={() => setScreensCollapsed((prev) => !prev)}
+              aria-expanded={!screensCollapsed}
+            >
+              <span>Screens</span>
+              <span className={`sidebar-chevron ${screensCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
+            </button>
+
+            {!screensCollapsed && (
+              <>
+                <div className="screen-list">
+                  {state.screens.map((screen) => (
+                    <button
+                      key={screen.id}
+                      className={`screen-list-item ${screen.id === state.activeScreenId ? 'active' : ''}`}
+                      onClick={() => setActiveScreen(screen.id)}
+                      onDoubleClick={() => handleScreenDoubleClick(screen.id, screen.name)}
+                      title="Double-click to rename"
+                    >
+                      {editingScreenId === screen.id ? (
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onBlur={() => handleScreenRename(screen.id)}
+                          onKeyDown={(e) => handleScreenRenameKeyDown(e, screen.id)}
+                          autoFocus
+                          className="screen-list-item-input"
+                        />
+                      ) : (
+                        screen.name
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="screen-controls">
+                  <button type="button" className="screen-control-btn" onClick={addScreen} title="Add Screen">+ Add</button>
+                  <button type="button" className="screen-control-btn" onClick={duplicateActiveScreen} title="Duplicate Active Screen">Duplicate</button>
+                  <button
+                    type="button"
+                    className="screen-control-btn danger"
+                    onClick={() => deleteScreen(state.activeScreenId)}
+                    disabled={state.screens.length <= 1}
+                    title="Delete Active Screen"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="sidebar-section">
+            <button
+              type="button"
+              className="sidebar-section-toggle"
+              onClick={() => setComponentsCollapsed((prev) => !prev)}
+              aria-expanded={!componentsCollapsed}
+            >
+              <span>Components</span>
+              <span className={`sidebar-chevron ${componentsCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
+            </button>
+
+            {!componentsCollapsed && (
+              <>
+                <div className="palette-list">
+                  {PALETTE_ITEMS.map((item) => (
+                    <DraggablePaletteItem key={item.type} item={item} />
+                  ))}
+                </div>
+
+                <div className="sidebar-section-title">Coming Soon</div>
+                <div className="palette-future">
+                  {['QR Scanner', 'NFC Button', 'Animation'].map((name) => (
+                    <div key={name} className="palette-item-future">{name}</div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="sidebar-section-title">Sandbox Mode</div>

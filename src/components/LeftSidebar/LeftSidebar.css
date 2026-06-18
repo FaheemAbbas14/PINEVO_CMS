@@ -27,8 +27,127 @@
   color: #aaa;
 }
 
+.sidebar-section {
+  margin: 10px 8px 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.sidebar-section-toggle {
+  width: 100%;
+  border: none;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #334155;
+  cursor: pointer;
+  border-bottom: 1px solid #e2e8f0;
+  position: relative;
+}
+
+.sidebar-section-toggle::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: #4f46e5;
+  margin-right: 8px;
+}
+
+.sidebar-section-toggle:hover {
+  background: #f1f5f9;
+}
+
+.sidebar-chevron {
+  transition: transform 0.15s ease;
+}
+
+.sidebar-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+
+.screen-list {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.screen-list-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e8e8e8;
+  background: #f7f7f7;
+  color: #444;
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.screen-list-item:hover {
+  background: #f0f0f0;
+}
+
+.screen-list-item.active {
+  background: #1a1a2e;
+  color: #fff;
+  border-color: #1a1a2e;
+}
+
+.screen-list-item-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  width: 100%;
+}
+
+.screen-controls {
+  padding: 0 10px 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.screen-control-btn {
+  border: 1px solid #dcdcdc;
+  background: #fff;
+  color: #444;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.screen-control-btn:hover {
+  background: #f7f7f7;
+}
+
+.screen-control-btn.danger {
+  color: #d14343;
+  border-color: #f1caca;
+}
+
+.screen-control-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .palette-list {
-  padding: 12px 10px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
