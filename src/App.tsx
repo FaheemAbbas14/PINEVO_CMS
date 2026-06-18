@@ -285,7 +285,14 @@ function AppContent() {
               <button onClick={handleZoomReset} title="Reset Zoom">⟲</button>
             </div>
             <div className="center-panel-content" onWheel={handleWheel}>
-              <div style={{ transform: `scale(${scale})`, transformOrigin: 'top center', transition: 'transform 0.2s ease', margin: '0 auto', width: 'fit-content' }}>
+              <div
+                className="center-panel-scale-wrap"
+                style={{
+                  transform: `scale(${scale})`,
+                  transformOrigin: 'top left',
+                  transition: 'transform 0.2s ease',
+                }}
+              >
                 <DeviceFrame>
                   <Canvas />
                 </DeviceFrame>

@@ -262,6 +262,14 @@ function normalizeHardwareButtonConfig(config: HardwareButtonConfig | undefined)
     return {
       ...config,
       inputAction: undefined,
+      submitGoToScreen: undefined,
+    };
+  }
+
+  if (config.inputAction === 'submit') {
+    return {
+      ...config,
+      goToScreen: undefined,
     };
   }
 
@@ -269,6 +277,7 @@ function normalizeHardwareButtonConfig(config: HardwareButtonConfig | undefined)
     return {
       ...config,
       goToScreen: undefined,
+      submitGoToScreen: undefined,
     };
   }
 
@@ -815,7 +824,10 @@ function buildFirmwareJsonComponent(
   }
 
   if (component.type === 'button') {
-    const target = component.goToScreen ? targetByScreenId.get(component.goToScreen) || '' : '';
+    const buttonTargetScreenId = component.function === 'submit'
+      ? (component.submitGoToScreen || component.goToScreen)
+      : component.goToScreen;
+    const target = buttonTargetScreenId ? targetByScreenId.get(buttonTargetScreenId) || '' : '';
     const derivedKey = extractNumericKey(component.text);
     const normalizedKey = derivedKey || String(index + 1);
     return {
@@ -889,6 +901,9 @@ function buildFirmwareJsonComponent(
     const maxLengthResolvedAction = component.maxLengthAction === 'function'
       ? (component.maxLengthFunction || 'none')
       : (component.maxLengthAction || 'none');
+    const maxLengthTargetScreen = maxLengthResolvedAction === 'submit'
+      ? component.maxLengthSubmitScreen
+      : component.maxLengthGoToScreen;
 
     return {
       ...base,
@@ -917,7 +932,7 @@ function buildFirmwareJsonComponent(
       inputType: component.inputType || 'text',
       maxLength: Number(component.maxLength || 0),
       maxLengthAction: maxLengthResolvedAction,
-      maxLengthGoToScreen: component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : '',
+      maxLengthGoToScreen: maxLengthTargetScreen ? (targetByScreenId.get(maxLengthTargetScreen) || '') : '',
       maxLengthApiCall: component.maxLengthApiCall || '',
       maxLengthCommand: component.maxLengthCommand || '',
       maxLengthAudio: resolveAssetReference(component.maxLengthAudio, embeddedAssetRefs),
@@ -1035,7 +1050,10 @@ function renderFirmwareComponent(
   }
 
   if (component.type === 'button') {
-    const target = component.goToScreen ? targetByScreenId.get(component.goToScreen) || '' : '';
+    const buttonTargetScreenId = component.function === 'submit'
+      ? (component.submitGoToScreen || component.goToScreen)
+      : component.goToScreen;
+    const target = buttonTargetScreenId ? targetByScreenId.get(buttonTargetScreenId) || '' : '';
     const derivedKey = extractNumericKey(component.text);
     const normalizedKey = derivedKey || String(index + 1);
     return buildTag('button', [
@@ -1106,6 +1124,9 @@ function renderFirmwareComponent(
     const maxLengthResolvedAction = component.maxLengthAction === 'function'
       ? (component.maxLengthFunction || 'none')
       : (component.maxLengthAction || 'none');
+    const maxLengthTargetScreen = maxLengthResolvedAction === 'submit'
+      ? component.maxLengthSubmitScreen
+      : component.maxLengthGoToScreen;
 
     const hasLabelKey = !!component.labelKey;
     return buildTag('input', [
@@ -1134,7 +1155,7 @@ function renderFirmwareComponent(
       ['data-input-type', component.inputType || 'text'],
       ['data-max-length', Number(component.maxLength || 0)],
       ['data-max-length-action', maxLengthResolvedAction],
-      ['data-max-length-target', component.maxLengthGoToScreen ? (targetByScreenId.get(component.maxLengthGoToScreen) || '') : ''],
+      ['data-max-length-target', maxLengthTargetScreen ? (targetByScreenId.get(maxLengthTargetScreen) || '') : ''],
       ['data-max-length-api-call', component.maxLengthApiCall || ''],
       ['data-max-length-command', component.maxLengthCommand || ''],
       ['data-max-length-audio-src', resolveAssetReference(component.maxLengthAudio, embeddedAssetRefs)],
@@ -1226,7 +1247,8 @@ function generateScreenHtml(
     return configured
       .map(([buttonId, rawConfig]) => {
         const config = normalizeHardwareButtonConfig(rawConfig);
-        const target = config?.goToScreen ? targetByScreenId.get(config.goToScreen) || '' : '';
+        const targetScreenId = config?.inputAction === 'submit' ? config?.submitGoToScreen : config?.goToScreen;
+        const target = targetScreenId ? targetByScreenId.get(targetScreenId) || '' : '';
         return buildTag('hardware_button', [
           ['key', mapExportHardwareButtonKey(buttonId)],
           ['target', target],
@@ -1422,9 +1444,10 @@ function generateScreenJsonExport(
     Object.entries(normalizedScreen.hardwareButtons || {})
       .map(([buttonId, config]) => {
         const normalized = normalizeHardwareButtonConfig(config);
+        const targetScreenId = normalized?.inputAction === 'submit' ? normalized?.submitGoToScreen : normalized?.goToScreen;
         return {
           key: mapExportHardwareButtonKey(buttonId),
-          target: normalized?.goToScreen ? targetByScreenId.get(normalized.goToScreen) || '' : '',
+          target: targetScreenId ? targetByScreenId.get(targetScreenId) || '' : '',
           input_action: normalizeExportInputAction(normalized?.inputAction),
           command: normalized?.command || '',
         };

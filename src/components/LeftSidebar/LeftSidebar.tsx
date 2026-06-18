@@ -231,122 +231,124 @@ export default function LeftSidebar({ width }: Readonly<LeftSidebarProps>) {
 
   return (
     <aside className="left-sidebar" style={typeof width === 'number' ? { width } : undefined}>
-      {!isPreviewMode && (
-        <>
-          <div className="sidebar-header">
-            <h2 className="sidebar-title">Workspace</h2>
-            <span className="sidebar-subtitle">Manage screens and components</span>
-          </div>
+      <div className="left-sidebar-scroll">
+        {!isPreviewMode && (
+          <>
+            <div className="sidebar-header">
+              <h2 className="sidebar-title">Workspace</h2>
+              <span className="sidebar-subtitle">Manage screens and components</span>
+            </div>
 
-          <div className="sidebar-section">
-            <button
-              type="button"
-              className="sidebar-section-toggle"
-              onClick={() => setScreensCollapsed((prev) => !prev)}
-              aria-expanded={!screensCollapsed}
-            >
-              <span>Screens</span>
-              <span className={`sidebar-chevron ${screensCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
-            </button>
+            <div className="sidebar-section">
+              <button
+                type="button"
+                className="sidebar-section-toggle"
+                onClick={() => setScreensCollapsed((prev) => !prev)}
+                aria-expanded={!screensCollapsed}
+              >
+                <span>Screens</span>
+                <span className={`sidebar-chevron ${screensCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
+              </button>
 
-            {!screensCollapsed && (
-              <>
-                <div className="screen-list">
-                  {state.screens.map((screen) => (
+              {!screensCollapsed && (
+                <>
+                  <div className="screen-list">
+                    {state.screens.map((screen) => (
+                      <button
+                        key={screen.id}
+                        className={`screen-list-item ${screen.id === state.activeScreenId ? 'active' : ''}`}
+                        onClick={() => setActiveScreen(screen.id)}
+                        onDoubleClick={() => handleScreenDoubleClick(screen.id, screen.name)}
+                        title="Double-click to rename"
+                      >
+                        {editingScreenId === screen.id ? (
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => handleScreenRename(screen.id)}
+                            onKeyDown={(e) => handleScreenRenameKeyDown(e, screen.id)}
+                            autoFocus
+                            className="screen-list-item-input"
+                          />
+                        ) : (
+                          screen.name
+                        )}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="screen-controls">
+                    <button type="button" className="screen-control-btn" onClick={addScreen} title="Add Screen">+ Add</button>
+                    <button type="button" className="screen-control-btn" onClick={duplicateActiveScreen} title="Duplicate Active Screen">Duplicate</button>
                     <button
-                      key={screen.id}
-                      className={`screen-list-item ${screen.id === state.activeScreenId ? 'active' : ''}`}
-                      onClick={() => setActiveScreen(screen.id)}
-                      onDoubleClick={() => handleScreenDoubleClick(screen.id, screen.name)}
-                      title="Double-click to rename"
+                      type="button"
+                      className="screen-control-btn danger"
+                      onClick={() => deleteScreen(state.activeScreenId)}
+                      disabled={state.screens.length <= 1}
+                      title="Delete Active Screen"
                     >
-                      {editingScreenId === screen.id ? (
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onBlur={() => handleScreenRename(screen.id)}
-                          onKeyDown={(e) => handleScreenRenameKeyDown(e, screen.id)}
-                          autoFocus
-                          className="screen-list-item-input"
-                        />
-                      ) : (
-                        screen.name
-                      )}
+                      Delete
                     </button>
-                  ))}
-                </div>
+                  </div>
+                </>
+              )}
+            </div>
 
-                <div className="screen-controls">
-                  <button type="button" className="screen-control-btn" onClick={addScreen} title="Add Screen">+ Add</button>
-                  <button type="button" className="screen-control-btn" onClick={duplicateActiveScreen} title="Duplicate Active Screen">Duplicate</button>
-                  <button
-                    type="button"
-                    className="screen-control-btn danger"
-                    onClick={() => deleteScreen(state.activeScreenId)}
-                    disabled={state.screens.length <= 1}
-                    title="Delete Active Screen"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="sidebar-section">
+              <button
+                type="button"
+                className="sidebar-section-toggle"
+                onClick={() => setComponentsCollapsed((prev) => !prev)}
+                aria-expanded={!componentsCollapsed}
+              >
+                <span>Components</span>
+                <span className={`sidebar-chevron ${componentsCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
+              </button>
+
+              {!componentsCollapsed && (
+                <>
+                  <div className="palette-list">
+                    {PALETTE_ITEMS.map((item) => (
+                      <DraggablePaletteItem key={item.type} item={item} />
+                    ))}
+                  </div>
+
+                  <div className="sidebar-section-title">Coming Soon</div>
+                  <div className="palette-future">
+                    {['QR Scanner', 'NFC Button', 'Animation'].map((name) => (
+                      <div key={name} className="palette-item-future">{name}</div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="sidebar-section-title">Sandbox Mode</div>
+            <div className="sandbox-toggle">
+              <button
+                className={`sandbox-btn ${state.sandboxMode ? 'active' : ''}`}
+                onClick={() => setSandboxMode(!state.sandboxMode)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  {state.sandboxMode ? (
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  ) : (
+                    <circle cx="12" cy="12" r="10" />
+                  )}
+                </svg>
+                {state.sandboxMode ? 'Enabled' : 'Disabled'}
+              </button>
+            </div>
+          </>
+        )}
+        {isPreviewMode && (
+          <div className="sidebar-header">
+            <h2 className="sidebar-title">Preview Mode</h2>
+            <span className="sidebar-subtitle">Running your flow</span>
           </div>
-
-          <div className="sidebar-section">
-            <button
-              type="button"
-              className="sidebar-section-toggle"
-              onClick={() => setComponentsCollapsed((prev) => !prev)}
-              aria-expanded={!componentsCollapsed}
-            >
-              <span>Components</span>
-              <span className={`sidebar-chevron ${componentsCollapsed ? 'collapsed' : ''}`} aria-hidden="true">▾</span>
-            </button>
-
-            {!componentsCollapsed && (
-              <>
-                <div className="palette-list">
-                  {PALETTE_ITEMS.map((item) => (
-                    <DraggablePaletteItem key={item.type} item={item} />
-                  ))}
-                </div>
-
-                <div className="sidebar-section-title">Coming Soon</div>
-                <div className="palette-future">
-                  {['QR Scanner', 'NFC Button', 'Animation'].map((name) => (
-                    <div key={name} className="palette-item-future">{name}</div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="sidebar-section-title">Sandbox Mode</div>
-          <div className="sandbox-toggle">
-            <button
-              className={`sandbox-btn ${state.sandboxMode ? 'active' : ''}`}
-              onClick={() => setSandboxMode(!state.sandboxMode)}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                {state.sandboxMode ? (
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                ) : (
-                  <circle cx="12" cy="12" r="10" />
-                )}
-              </svg>
-              {state.sandboxMode ? 'Enabled' : 'Disabled'}
-            </button>
-          </div>
-        </>
-      )}
-      {isPreviewMode && (
-        <div className="sidebar-header">
-          <h2 className="sidebar-title">Preview Mode</h2>
-          <span className="sidebar-subtitle">Running your flow</span>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }

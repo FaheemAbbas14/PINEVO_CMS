@@ -40,6 +40,14 @@ export default function Preview() {
           }}
         >
           {activeScreen?.components.map((component) => (
+            (() => {
+              const buttonTargetScreen = component.type === 'button'
+                ? (component.function === 'submit'
+                  ? (component.submitGoToScreen || component.goToScreen)
+                  : component.goToScreen)
+                : undefined;
+
+              return (
             <div
               key={component.id}
               className="preview-item"
@@ -76,11 +84,11 @@ export default function Preview() {
                 <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
                   <span>{component.text}</span>
                   {/* Show interaction indicators */}
-                  {(component.goToScreen || component.function !== 'none' || component.command || component.buttonSound) && (
+                  {(buttonTargetScreen || component.function !== 'none' || component.command || component.buttonSound) && (
                     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '2px' }}>
-                      {component.goToScreen && (
+                      {buttonTargetScreen && (
                         <span style={{ fontSize: '5px', padding: '1px 3px', background: '#dbeafe', color: '#1e40af', borderRadius: '2px' }}>
-                          → {getTargetScreenName(component.goToScreen)}
+                          → {getTargetScreenName(buttonTargetScreen)}
                         </span>
                       )}
                       {component.function && component.function !== 'none' && (
@@ -105,6 +113,8 @@ export default function Preview() {
                 component.text
               )}
             </div>
+              );
+            })()
           ))}
         </div>
       </div>

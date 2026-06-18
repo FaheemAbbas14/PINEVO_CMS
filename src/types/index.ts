@@ -62,7 +62,8 @@ export interface CanvasComponent {
 
   // Button & Interaction Enhancements
   goToScreen?: string;  // ID of the screen to navigate to
-  function?: 'none' | 'connect' | 'open_door' | 'initiate_multi_connect' | 'turn_on_modem' | 'dial_up_modem' | 'goto_screen' | 'play_audio' | 'api_call' | 'change_theme' | 'change_language' | 'report_error' | 'retry' | 'reopen' | 'cancel';
+  function?: 'none' | 'connect' | 'open_door' | 'initiate_multi_connect' | 'turn_on_modem' | 'dial_up_modem' | 'goto_screen' | 'play_audio' | 'api_call' | 'change_theme' | 'change_language' | 'report_error' | 'retry' | 'reopen' | 'cancel' | 'submit';
+  submitGoToScreen?: string;
   apiCall?: string;     // URL for API trigger
   command?: string;     // Command string to execute
   buttonSound?: string; // Audio URL to play on button click
@@ -79,6 +80,7 @@ export interface CanvasComponent {
   // Text Input max-length action settings
   maxLengthAction?: 'none' | 'function' | 'goto_screen' | 'play_audio' | 'api_call' | 'run_command';
   maxLengthFunction?: string;
+  maxLengthSubmitScreen?: string;
   maxLengthGoToScreen?: string;
   maxLengthApiCall?: string;
   maxLengthCommand?: string;
@@ -89,11 +91,12 @@ export interface CanvasComponent {
 export type HardwareButtonId = 'power' | 'vol_up' | 'vol_down' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '0' | 'star' | 'hash' | 'call' | 'end' | 'left_1' | 'left_2' | 'right_1' | 'right_2' | 'cancel' | 'enter' | 'backspace' | 'speaker' | 'menu';
 
 // Button action types include input collection, device operations, and app interactions
-export type HardwareButtonAction = 'text' | 'number' | 'scan' | 'connect' | 'disconnect' | 'start_scanner' | 'change_theme';
+export type HardwareButtonAction = 'text' | 'number' | 'scan' | 'connect' | 'disconnect' | 'start_scanner' | 'change_theme' | 'submit';
 
 export interface HardwareButtonConfig {
   goToScreen?: string;
   inputAction?: HardwareButtonAction;
+  submitGoToScreen?: string;
   command?: string;
 }
 

@@ -50,10 +50,14 @@ export default function ButtonItem({ component }: Props) {
 
     // Handle preview mode - execute button action
     if (isPreviewMode) {
-      // Check for goto_screen first
-      if (component.goToScreen) {
-        console.log('Navigating to screen:', component.goToScreen);
-        setActiveScreen(component.goToScreen);
+      const targetScreen = component.function === 'submit'
+        ? (component.submitGoToScreen || component.goToScreen)
+        : component.goToScreen;
+
+      // Screen navigation is only valid for goto_screen and submit actions.
+      if ((component.function === 'goto_screen' || component.function === 'submit') && targetScreen) {
+        console.log('Navigating to screen:', targetScreen);
+        setActiveScreen(targetScreen);
         return;
       }
 

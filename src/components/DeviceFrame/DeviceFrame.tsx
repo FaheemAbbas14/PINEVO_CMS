@@ -73,6 +73,11 @@ export default function DeviceFrame({ children }: Props) {
 
       const btnConfig = hardwareButtons[buttonId];
 
+      if (btnConfig?.inputAction === 'submit' && btnConfig.submitGoToScreen) {
+        setActiveScreen(btnConfig.submitGoToScreen);
+        return;
+      }
+
       if (btnConfig?.goToScreen) {
         // Navigate to screen
         setActiveScreen(btnConfig.goToScreen);
@@ -114,7 +119,7 @@ export default function DeviceFrame({ children }: Props) {
     }
   };
 
-  const handleHardwareButtonChange = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction', value: string) => {
+  const handleHardwareButtonChange = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction' | 'submitGoToScreen', value: string) => {
     if (!currentScreen) return;
     const currentConfig = hardwareButtons[buttonId] || {};
 
@@ -125,9 +130,22 @@ export default function DeviceFrame({ children }: Props) {
 
     if (field === 'goToScreen' && value) {
       nextConfig.inputAction = undefined;
+      nextConfig.submitGoToScreen = undefined;
     }
 
     if (field === 'inputAction' && value) {
+      nextConfig.goToScreen = undefined;
+      if (value !== 'submit') {
+        nextConfig.submitGoToScreen = undefined;
+      }
+    }
+
+    if (field === 'inputAction' && !value) {
+      nextConfig.submitGoToScreen = undefined;
+    }
+
+    if (field === 'submitGoToScreen' && value) {
+      nextConfig.inputAction = 'submit';
       nextConfig.goToScreen = undefined;
     }
 
@@ -136,13 +154,13 @@ export default function DeviceFrame({ children }: Props) {
     });
   };
 
-  const clearHardwareButtonInteraction = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction') => {
+  const clearHardwareButtonInteraction = (buttonId: HardwareButtonId, field: 'goToScreen' | 'inputAction' | 'submitGoToScreen') => {
     handleHardwareButtonChange(buttonId, field, '');
   };
 
   const renderConfigBadge = (buttonId: HardwareButtonId) => {
     const config = hardwareButtons[buttonId];
-    if (config?.goToScreen || config?.inputAction || config?.command) {
+    if (config?.goToScreen || config?.inputAction || config?.submitGoToScreen || config?.command) {
       return <div className="button-interaction-badge">⚡</div>;
     }
     return null;
@@ -321,6 +339,20 @@ export default function DeviceFrame({ children }: Props) {
         </div>
       )}
 
+      <div className="device-info">
+        {isFlex ? (
+          <>
+            <h3>Flex Device Active</h3>
+            <p>Click hardware buttons to configure interactions</p>
+          </>
+        ) : (
+          <>
+            <h3>PIN Evo Active</h3>
+            <p>Click hardware buttons to configure interactions</p>
+          </>
+        )}
+      </div>
+
       {selectedHardwareButton && !state.previewMode && (
         <div className="hardware-config-panel">
           <span style={{ fontWeight: 600, fontSize: '12px', textTransform: 'capitalize' }}>
@@ -374,23 +406,34 @@ export default function DeviceFrame({ children }: Props) {
                 </button>
               )}
             </div>
+            {hardwareButtons[selectedHardwareButton]?.inputAction === 'submit' && (
+              <div className="interaction-select-with-clear">
+                <select
+                  value={hardwareButtons[selectedHardwareButton]?.submitGoToScreen || ''}
+                  onChange={(e) => handleHardwareButtonChange(selectedHardwareButton, 'submitGoToScreen', e.target.value)}
+                  style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd', fontSize: '11px' }}
+                >
+                  <option value="">Submit target screen...</option>
+                  {state.screens.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {hardwareButtons[selectedHardwareButton]?.submitGoToScreen && (
+                  <button
+                    type="button"
+                    className="btn-delink-icon"
+                    onClick={() => clearHardwareButtonInteraction(selectedHardwareButton, 'submitGoToScreen')}
+                    aria-label="De-link submit target"
+                    title="De-link submit target"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
-
-      <div className="device-info">
-        {isFlex ? (
-          <>
-            <h3>Flex Device Active</h3>
-            <p>Click hardware buttons to configure interactions</p>
-          </>
-        ) : (
-          <>
-            <h3>PIN Evo Active</h3>
-            <p>Click hardware buttons to configure interactions</p>
-          </>
-        )}
-      </div>
     </div>
   );
 }

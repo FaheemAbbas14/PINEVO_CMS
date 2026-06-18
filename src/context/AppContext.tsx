@@ -857,6 +857,7 @@ export function CMSProvider({ children }: { readonly children: React.ReactNode }
       ...config,
       goToScreen: config.inputAction ? undefined : config.goToScreen,
       inputAction: config.goToScreen ? undefined : config.inputAction,
+      submitGoToScreen: config.inputAction === 'submit' ? config.submitGoToScreen : undefined,
     };
 
     dispatch({ type: 'UPDATE_SCREEN_HARDWARE_BUTTON', payload: { screenId, buttonId, config: normalizedConfig } });
